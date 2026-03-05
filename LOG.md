@@ -30,6 +30,46 @@
 
 ---
 
+### [PHASE 8] — Frontend: Design System + Shared Layout Components
+**Date:** 2026-03-05
+**Agent:** Phase 8 Agent
+**Status:** ✅ Complete
+
+**Files Created:**
+- `frontend/src/vite-env.d.ts` — Vite env type declarations (`VITE_API_BASE_URL`); fixes `import.meta.env` TypeScript error
+
+**Files Modified (stub → full implementation):**
+- `frontend/src/components/ui/Button.tsx` — Full implementation: `primary/secondary/ghost/danger` variants, `sm/md/lg` sizes, `isLoading` spinner, `leftIcon/rightIcon`, `fullWidth` prop, `forwardRef`, disabled states
+- `frontend/src/components/ui/Spinner.tsx` — Full implementation: SVG spinner with `sm/md/lg` sizes and `red/white/gray` color props; used by Button and Table
+- `frontend/src/components/ui/Input.tsx` — Full implementation: `label`, `error`, `helperText`, `leftAddon/rightAddon`, `forwardRef`, ARIA attributes (`aria-invalid`, `aria-describedby`), validation styling
+- `frontend/src/components/ui/Select.tsx` — Full implementation: same API shape as Input; `options: SelectOption[]`, `placeholder` (disabled first option), ARIA, validation styling, `forwardRef`
+- `frontend/src/components/ui/Card.tsx` — Full implementation: `headerTitle` strip, `headerRight` slot, `noPadding` flag, `shadow-card` Tailwind token
+- `frontend/src/components/ui/Badge.tsx` — Full implementation: `active` (green), `inactive` (gray), `pending` (yellow), `web` (blue), `ussd` (purple), `sys_admin` (cu-red), `tax_admin` (orange), `default` variants
+- `frontend/src/components/ui/Alert.tsx` — Full implementation: `info/success/warning/error` variants with SVG icons, optional `title`, `onClose` dismiss button, ARIA `role="alert"`
+- `frontend/src/components/ui/Table.tsx` — Full implementation: generic `<T>` typed columns, loading skeleton (Spinner), empty state message, `onRowClick` callback, overflow-x scroll wrapper
+- `frontend/src/components/ui/Modal.tsx` — Full implementation: backdrop click/Esc to close, keyboard trap, ARIA `role="dialog"`, sizes `sm/md/lg/xl`, optional `footer` slot, `disableClose` flag; `ModalCloseButton` convenience export; body overflow lock
+- `frontend/src/components/ui/index.ts` — Full barrel export for all 9 UI primitives with named type exports
+- `frontend/src/components/layout/Header.tsx` — Full implementation: Ghana coat-of-arms SVG placeholder, "DISTRICT ASSEMBLY – REVENUE UNIT" identity strip, responsive nav with hamburger menu (mobile), active NavLink highlighting, cu-red background
+- `frontend/src/components/layout/Footer.tsx` — Full implementation: copyright line, Help link, responsive flex layout
+- `frontend/src/components/layout/PublicLayout.tsx` — Full implementation: wraps `<Outlet />` with `<Header />` + `<Footer />`; `min-h-screen flex-col` layout
+- `frontend/src/components/layout/AdminLayout.tsx` — Full implementation: `<Sidebar />` + top bar + `<Outlet />` in flex layout; sticky sidebar
+- `frontend/src/components/layout/Sidebar.tsx` — Full implementation: cu-red branding strip with star emblem, nav items (Dashboard/Traders/Reports/Audit Logs), SYS_ADMIN-only gating on Audit Logs, active state with cu-red left border, user email/role display, Sign Out button with `clearAuth()` + navigate to /admin/login
+- `frontend/src/components/layout/ProtectedRoute.tsx` — Full implementation: checks `isAuthenticated()`, `requiredRole` guard (SYS_ADMIN gating strict; TAX_ADMIN routes also accessible to SYS_ADMIN), redirects to login or dashboard
+- `frontend/src/components/charts/BarChart.tsx` — Full implementation: recharts `ResponsiveContainer` + `BarChart`, multi-bar support, cu-red default color, loading state spinner, customised axis/grid/tooltip styles
+- `frontend/src/components/charts/LineChart.tsx` — Full implementation: recharts `LineChart`, multi-line support, cu-red default, dot/activeDot styling, loading state
+- `frontend/src/components/charts/DonutChart.tsx` — Full implementation: recharts `PieChart` with inner/outer radius props, multi-segment with default color palette (cu-red as first), loading state, formatted tooltip
+- `frontend/src/router.tsx` — Removed unused `useAuthStore` import (was causing TS6133 error)
+
+**Notes:**
+- `npm run lint` (tsc --noEmit) passes with **zero errors** after fixes.
+- Four issues encountered and resolved: (1) unused `Link` import in Header, (2) unused `centerLabel` prop in DonutChart (renamed to `_centerLabel`), (3) missing `vite-env.d.ts` causing `import.meta.env` error, (4) unused `useAuthStore` import in router.tsx.
+- All components use CU red (`#8A1020`) as primary brand color and inherit from `tailwind.config.ts` tokens.
+- `noUnusedLocals: true` and `noUnusedParameters: true` are active in tsconfig — all props are intentionally destructured or prefixed with `_` where unused.
+- Stub page files for Phases 9 & 10 remain as single-line stubs — they are not part of Phase 8's scope. Phase 9 and 10 agents will implement them.
+- `PublicLayout` now uses the full `Header` and `Footer`; `AdminLayout` uses the full `Sidebar`. The router continues to work as-is.
+
+---
+
 ### [PHASE 7] — Backend: Notifications Module + Full Test Suite
 **Date:** 2026-03-05
 **Agent:** Phase 7 Agent
