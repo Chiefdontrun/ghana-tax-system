@@ -12,6 +12,7 @@ from apps.registration.repository import (
     LocationRepository,
     TraderRepository,
 )
+from apps.ussd.validators import normalise_phone
 from apps.tin.services import TINService
 
 logger = logging.getLogger(__name__)
@@ -37,7 +38,7 @@ class RegistrationService:
         6. Stub SMS notification.
         Returns {tin_number, trader_id, name, sms_status}.
         """
-        phone: str = validated_data["phone_number"]
+        phone: str = normalise_phone(validated_data["phone_number"])
         name: str = validated_data["name"]
         business_type: str = validated_data["business_type"]
         loc: dict = validated_data["location"]
@@ -124,7 +125,7 @@ class RegistrationService:
         """
         validated = {
             "name": collected.get("name", ""),
-            "phone_number": msisdn,
+            "phone_number": normalise_phone(msisdn),
             "business_type": collected.get("business_type", "other"),
             "location": {
                 "region": collected.get("region", "Unknown"),
@@ -134,7 +135,7 @@ class RegistrationService:
         }
 
         # ── Idempotency ───────────────────────────────────────────────────────
-        existing = _trader_repo.find_by_phone(msisdn)
+        existing = _trader_repo.find_by_phone(normalise_phone(msisdn))
         if existing:
             return {
                 "tin_number": existing["tin_number"],
@@ -202,11 +203,13 @@ class RegistrationService:
     @staticmethod
     def _send_tin_sms_stub(phone: str, tin_number: str, name: str) -> str:
         """
-        Stub for Phase 7 NotificationService.
-        Logs intent; actual SMS sending implemented in Phase 7.
+        Delegate to NotificationService (wired in Phase 7).
+        Returns 'sent' on success, 'failed' on provider error.
         """
-        logger.info(
-            "[SMS STUB] Would send TIN %s to %s (%s)",
-            tin_number, phone, name,
-        )
-        return "queued"
+        try:
+            from apps.notifications.services import NotificationService
+            result = NotificationService().send_tin_sms(phone, tin_number, name)
+            return "sent" if result.get("success") else "failed"
+        except Exception as exc:
+            logger.warning("SMS notification error for %s: %s", phone, exc)
+            return "failed"
