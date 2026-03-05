@@ -21,7 +21,7 @@ INSTALLED_APPS = [
     # Third-party
     "rest_framework",
     "corsheaders",
-    "ratelimit",
+    "django_ratelimit",
     # Local apps
     "apps.auth_app",
     "apps.registration",
