@@ -1,0 +1,496 @@
+### Ghana District Assembly — Revenue Unit
+### Digital Taxation & Revenue Tracking System
+### REST Client test file — compatible with VS Code REST Client extension
+### Usage: Install "REST Client" extension, then click "Send Request" above any request.
+
+@baseUrl = http://localhost:8000
+@contentType = application/json
+
+### ─── VARIABLES (populated after login) ──────────────────────────────────────
+# After running "Admin Login", copy access/refresh tokens into these variables:
+@accessToken = PASTE_ACCESS_TOKEN_HERE
+@refreshToken = PASTE_REFRESH_TOKEN_HERE
+@taxAdminToken = PASTE_TAX_ADMIN_TOKEN_HERE
+
+###
+# ════════════════════════════════════════════════════════════════════
+# AUTH MODULE
+# ════════════════════════════════════════════════════════════════════
+
+### [AUTH-01] SYS_ADMIN Login — Success
+POST {{baseUrl}}/api/auth/login
+Content-Type: {{contentType}}
+
+{
+  "email": "sysadmin@demo.gov.gh",
+  "password": "DemoPass123!"
+}
+
+###
+
+### [AUTH-02] TAX_ADMIN Login — Success
+POST {{baseUrl}}/api/auth/login
+Content-Type: {{contentType}}
+
+{
+  "email": "taxadmin1@demo.gov.gh",
+  "password": "DemoPass123!"
+}
+
+###
+
+### [AUTH-03] Login — Wrong Password (expects 401)
+POST {{baseUrl}}/api/auth/login
+Content-Type: {{contentType}}
+
+{
+  "email": "sysadmin@demo.gov.gh",
+  "password": "wrongpassword"
+}
+
+###
+
+### [AUTH-04] Login — Unknown Email (expects 401)
+POST {{baseUrl}}/api/auth/login
+Content-Type: {{contentType}}
+
+{
+  "email": "nobody@example.com",
+  "password": "DemoPass123!"
+}
+
+###
+
+### [AUTH-05] Refresh Access Token
+POST {{baseUrl}}/api/auth/refresh
+Content-Type: {{contentType}}
+
+{
+  "refresh": "{{refreshToken}}"
+}
+
+###
+
+### [AUTH-06] Get Current Admin (Me)
+GET {{baseUrl}}/api/me
+Authorization: Bearer {{accessToken}}
+
+###
+
+### [AUTH-07] Protected Route — No Token (expects 401)
+GET {{baseUrl}}/api/me
+
+###
+
+
+###
+# ════════════════════════════════════════════════════════════════════
+# ADMIN USER MANAGEMENT (SYS_ADMIN only)
+# ════════════════════════════════════════════════════════════════════
+
+### [ADMIN-01] List All Admins (SYS_ADMIN)
+GET {{baseUrl}}/api/admin/users
+Authorization: Bearer {{accessToken}}
+
+###
+
+### [ADMIN-02] Create New Admin (SYS_ADMIN)
+POST {{baseUrl}}/api/admin/users
+Content-Type: {{contentType}}
+Authorization: Bearer {{accessToken}}
+
+{
+  "email": "newadmin@demo.gov.gh",
+  "password": "DemoPass123!",
+  "name": "New Admin",
+  "role": "TAX_ADMIN"
+}
+
+###
+
+### [ADMIN-03] Create Admin — TAX_ADMIN Forbidden (expects 403)
+POST {{baseUrl}}/api/admin/users
+Content-Type: {{contentType}}
+Authorization: Bearer {{taxAdminToken}}
+
+{
+  "email": "hacker@demo.gov.gh",
+  "password": "DemoPass123!",
+  "name": "Not Allowed",
+  "role": "TAX_ADMIN"
+}
+
+###
+
+### [ADMIN-04] Update Admin Role (SYS_ADMIN)
+PATCH {{baseUrl}}/api/admin/users/PASTE_ADMIN_ID_HERE
+Content-Type: {{contentType}}
+Authorization: Bearer {{accessToken}}
+
+{
+  "role": "TAX_ADMIN"
+}
+
+###
+# ════════════════════════════════════════════════════════════════════
+# TRADER REGISTRATION (Public — no auth)
+# ════════════════════════════════════════════════════════════════════
+
+### [REG-01] Register Trader — Web Channel (expects 201)
+POST {{baseUrl}}/api/register
+Content-Type: {{contentType}}
+
+{
+  "name": "Akua Mensah",
+  "phone_number": "+233241234567",
+  "business_type": "food_vendor",
+  "location": {
+    "region": "Greater Accra",
+    "district": "Accra Central",
+    "market_name": "Makola Market"
+  }
+}
+
+###
+
+### [REG-02] Register Same Phone Again — Idempotent (expects 200 + same TIN)
+POST {{baseUrl}}/api/register
+Content-Type: {{contentType}}
+
+{
+  "name": "Akua Mensah",
+  "phone_number": "+233241234567",
+  "business_type": "food_vendor",
+  "location": {
+    "region": "Greater Accra",
+    "district": "Accra Central",
+    "market_name": "Makola Market"
+  }
+}
+
+###
+
+### [REG-03] Register — Invalid Phone Format (expects 400/422)
+POST {{baseUrl}}/api/register
+Content-Type: {{contentType}}
+
+{
+  "name": "Test Trader",
+  "phone_number": "not-a-phone",
+  "business_type": "retail",
+  "location": {
+    "region": "Ashanti",
+    "district": "Kumasi",
+    "market_name": "Central Market"
+  }
+}
+
+###
+
+### [REG-04] Register — Missing Required Fields (expects 400/422)
+POST {{baseUrl}}/api/register
+Content-Type: {{contentType}}
+
+{
+  "name": "No Phone Trader",
+  "business_type": "retail"
+}
+
+###
+
+### [REG-05] Register with 0-prefixed phone (Ghana format)
+POST {{baseUrl}}/api/register
+Content-Type: {{contentType}}
+
+{
+  "name": "Kofi Asante",
+  "phone_number": "0271234567",
+  "business_type": "clothing",
+  "location": {
+    "region": "Ashanti",
+    "district": "Kumasi Central",
+    "market_name": "Asafo Market"
+  }
+}
+
+###
+
+
+###
+# ════════════════════════════════════════════════════════════════════
+# TIN LOOKUP (Public — no auth)
+# ════════════════════════════════════════════════════════════════════
+
+### [TIN-01] TIN Lookup — Found
+POST {{baseUrl}}/api/tin/lookup
+Content-Type: {{contentType}}
+
+{
+  "phone_number": "+233241234567"
+}
+
+###
+
+### [TIN-02] TIN Lookup — Not Found (expects 404)
+POST {{baseUrl}}/api/tin/lookup
+Content-Type: {{contentType}}
+
+{
+  "phone_number": "+233299999999"
+}
+
+###
+
+### [TIN-03] TIN Lookup — Invalid Phone Format (expects 400/422)
+POST {{baseUrl}}/api/tin/lookup
+Content-Type: {{contentType}}
+
+{
+  "phone_number": "12345"
+}
+
+###
+# ════════════════════════════════════════════════════════════════════
+# USSD SIMULATION (Africa's Talking webhook format)
+# ════════════════════════════════════════════════════════════════════
+# NOTE: Use a unique sessionId for each independent flow test.
+#       text field uses * as delimiter for previous inputs.
+
+### [USSD-01] Initial Menu
+POST {{baseUrl}}/ussd/callback
+Content-Type: application/x-www-form-urlencoded
+
+sessionId=test_sess_001&serviceCode=*714%23&phoneNumber=%2B233281234567&text=
+
+###
+
+### [USSD-02] Select "1" — Register Business
+POST {{baseUrl}}/ussd/callback
+Content-Type: application/x-www-form-urlencoded
+
+sessionId=test_sess_001&serviceCode=*714%23&phoneNumber=%2B233281234567&text=1
+
+###
+
+### [USSD-03] Enter Name
+POST {{baseUrl}}/ussd/callback
+Content-Type: application/x-www-form-urlencoded
+
+sessionId=test_sess_001&serviceCode=*714%23&phoneNumber=%2B233281234567&text=1*Yaw+Boateng
+
+###
+
+### [USSD-04] Select Business Type (1 = Food Vendor)
+POST {{baseUrl}}/ussd/callback
+Content-Type: application/x-www-form-urlencoded
+
+sessionId=test_sess_001&serviceCode=*714%23&phoneNumber=%2B233281234567&text=1*Yaw+Boateng*1
+
+###
+
+### [USSD-05] Select Region (2 = Ashanti)
+POST {{baseUrl}}/ussd/callback
+Content-Type: application/x-www-form-urlencoded
+
+sessionId=test_sess_001&serviceCode=*714%23&phoneNumber=%2B233281234567&text=1*Yaw+Boateng*1*2
+
+###
+
+### [USSD-06] Enter Market Name
+POST {{baseUrl}}/ussd/callback
+Content-Type: application/x-www-form-urlencoded
+
+sessionId=test_sess_001&serviceCode=*714%23&phoneNumber=%2B233281234567&text=1*Yaw+Boateng*1*2*Kumasi+Central+Market
+
+###
+
+### [USSD-07] Confirm Registration (1 = Yes) — Creates trader, returns TIN
+POST {{baseUrl}}/ussd/callback
+Content-Type: application/x-www-form-urlencoded
+
+sessionId=test_sess_001&serviceCode=*714%23&phoneNumber=%2B233281234567&text=1*Yaw+Boateng*1*2*Kumasi+Central+Market*1
+
+###
+
+### [USSD-08] Check TIN (option 2 from main menu)
+POST {{baseUrl}}/ussd/callback
+Content-Type: application/x-www-form-urlencoded
+
+sessionId=test_sess_002&serviceCode=*714%23&phoneNumber=%2B233281234567&text=2
+
+###
+
+### [USSD-09] Check TIN — Use own number ("0")
+POST {{baseUrl}}/ussd/callback
+Content-Type: application/x-www-form-urlencoded
+
+sessionId=test_sess_002&serviceCode=*714%23&phoneNumber=%2B233281234567&text=2*0
+
+###
+
+### [USSD-10] Help (option 3)
+POST {{baseUrl}}/ussd/callback
+Content-Type: application/x-www-form-urlencoded
+
+sessionId=test_sess_003&serviceCode=*714%23&phoneNumber=%2B233291234567&text=3
+
+###
+
+### [USSD-11] Invalid Main Menu Option
+POST {{baseUrl}}/ussd/callback
+Content-Type: application/x-www-form-urlencoded
+
+sessionId=test_sess_004&serviceCode=*714%23&phoneNumber=%2B233291234568&text=9
+
+###
+
+
+###
+# ════════════════════════════════════════════════════════════════════
+# TRADERS LIST & DETAIL (TAX_ADMIN+ required)
+# ════════════════════════════════════════════════════════════════════
+
+### [TRADERS-01] List Traders — All (paginated)
+GET {{baseUrl}}/api/traders?page=1&page_size=20
+Authorization: Bearer {{accessToken}}
+
+###
+
+### [TRADERS-02] List Traders — Filter by Channel: web
+GET {{baseUrl}}/api/traders?channel=web&page=1&page_size=20
+Authorization: Bearer {{accessToken}}
+
+###
+
+### [TRADERS-03] List Traders — Filter by Channel: ussd
+GET {{baseUrl}}/api/traders?channel=ussd&page=1&page_size=20
+Authorization: Bearer {{accessToken}}
+
+###
+
+### [TRADERS-04] List Traders — Filter by Business Type
+GET {{baseUrl}}/api/traders?business_type=food_vendor&page=1&page_size=20
+Authorization: Bearer {{accessToken}}
+
+###
+
+### [TRADERS-05] List Traders — Filter by Region
+GET {{baseUrl}}/api/traders?region=Greater+Accra&page=1&page_size=20
+Authorization: Bearer {{accessToken}}
+
+###
+
+### [TRADERS-06] List Traders — Full Text Search
+GET {{baseUrl}}/api/traders?search=Kofi&page=1&page_size=20
+Authorization: Bearer {{accessToken}}
+
+###
+
+### [TRADERS-07] List Traders — Date Range Filter
+GET {{baseUrl}}/api/traders?date_from=2026-01-01&date_to=2026-03-31&page=1&page_size=20
+Authorization: Bearer {{accessToken}}
+
+###
+
+### [TRADERS-08] List Traders — Combined Filters
+GET {{baseUrl}}/api/traders?channel=web&region=Ashanti&business_type=clothing&page=1&page_size=10
+Authorization: Bearer {{accessToken}}
+
+###
+
+### [TRADERS-09] Trader Detail — Valid ID (replace with real ID)
+GET {{baseUrl}}/api/traders/PASTE_TRADER_ID_HERE
+Authorization: Bearer {{accessToken}}
+
+###
+
+### [TRADERS-10] Trader Detail — Not Found (expects 404)
+GET {{baseUrl}}/api/traders/000000000000000000000000
+Authorization: Bearer {{accessToken}}
+
+###
+
+### [TRADERS-11] List Traders — No Auth (expects 401)
+GET {{baseUrl}}/api/traders
+
+###
+
+###
+# ════════════════════════════════════════════════════════════════════
+# REPORTS (TAX_ADMIN+ required)
+# ════════════════════════════════════════════════════════════════════
+
+### [REPORTS-01] Summary — Last 7 Days
+GET {{baseUrl}}/api/reports/summary?period=7d
+Authorization: Bearer {{accessToken}}
+
+###
+
+### [REPORTS-02] Summary — Last 30 Days
+GET {{baseUrl}}/api/reports/summary?period=30d
+Authorization: Bearer {{accessToken}}
+
+###
+
+### [REPORTS-03] Summary — All Time
+GET {{baseUrl}}/api/reports/summary?period=all
+Authorization: Bearer {{accessToken}}
+
+###
+
+### [REPORTS-04] Export CSV — All Traders
+GET {{baseUrl}}/api/reports/export?format=csv
+Authorization: Bearer {{accessToken}}
+
+###
+
+### [REPORTS-05] Export CSV — Filtered by Channel
+GET {{baseUrl}}/api/reports/export?format=csv&channel=web
+Authorization: Bearer {{accessToken}}
+
+###
+
+### [REPORTS-06] Export CSV — No Auth (expects 401)
+GET {{baseUrl}}/api/reports/export?format=csv
+
+###
+
+###
+# ════════════════════════════════════════════════════════════════════
+# AUDIT LOGS (SYS_ADMIN only)
+# ════════════════════════════════════════════════════════════════════
+
+### [AUDIT-01] List Audit Logs — All
+GET {{baseUrl}}/api/audit-logs?page=1&page_size=20
+Authorization: Bearer {{accessToken}}
+
+###
+
+### [AUDIT-02] Filter by Action
+GET {{baseUrl}}/api/audit-logs?action=CREATE_TRADER&page=1&page_size=20
+Authorization: Bearer {{accessToken}}
+
+###
+
+### [AUDIT-03] Filter by Action: LOGIN_SUCCESS
+GET {{baseUrl}}/api/audit-logs?action=LOGIN_SUCCESS&page=1&page_size=20
+Authorization: Bearer {{accessToken}}
+
+###
+
+### [AUDIT-04] Filter by Date Range
+GET {{baseUrl}}/api/audit-logs?date_from=2026-01-01&date_to=2026-03-31&page=1
+Authorization: Bearer {{accessToken}}
+
+###
+
+### [AUDIT-05] Audit Logs — TAX_ADMIN Forbidden (expects 403)
+GET {{baseUrl}}/api/audit-logs
+Authorization: Bearer {{taxAdminToken}}
+
+###
+
+### [AUDIT-06] Audit Logs — No Auth (expects 401)
+GET {{baseUrl}}/api/audit-logs
+
+###

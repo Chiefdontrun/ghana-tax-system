@@ -234,14 +234,26 @@ See `PHASES.md` for the full build plan and `LOG.md` for completed work.
 | Phase | Status |
 |-------|--------|
 | 1 — Project Scaffold & Infra | ✅ Complete |
-| 2 — MongoDB Data Layer & Seed | ⏳ Pending |
-| 3 — Auth Module | ⏳ Pending |
-| 4 — Registration + TIN | ⏳ Pending |
-| 5 — USSD Gateway | ⏳ Pending |
-| 6 — Reports + Audit APIs | ⏳ Pending |
-| 7 — Notifications + Tests | ⏳ Pending |
-| 8 — Frontend Design System | ⏳ Pending |
-| 9 — Trader Portal (5 pages) | ⏳ Pending |
-| 10 — Admin Portal (6 pages) | ⏳ Pending |
-| 11 — Integration & Wiring | ⏳ Pending |
+| 2 — MongoDB Data Layer & Seed | ✅ Complete |
+| 3 — Auth Module | ✅ Complete |
+| 4 — Registration + TIN | ✅ Complete |
+| 5 — USSD Gateway | ✅ Complete |
+| 6 — Reports + Audit APIs | ✅ Complete |
+| 7 — Notifications + Tests | ✅ Complete |
+| 8 — Frontend Design System | ✅ Complete |
+| 9 — Trader Portal (5 pages) | ✅ Complete |
+| 10 — Admin Portal (6 pages) | ✅ Complete |
+| 11 — Integration & Wiring | ✅ Complete |
 | 12 — Security + Performance | ⏳ Pending |
+
+---
+
+## API Test File
+
+A comprehensive `.http` test file for VS Code REST Client is available at:
+
+```
+api-tests/ghana-tax-system.http
+```
+
+Covers all 14 API endpoints across Auth, Registration, TIN Lookup, USSD, Traders, Reports, and Audit Logs.
