@@ -30,6 +30,46 @@
 
 ---
 
+### [PHASE 10] — Frontend: Admin Portal (6 Pages + 5 Components)
+**Date:** 2026-03-05
+**Agent:** Phase 10 Agent
+**Status:** ✅ Complete
+
+**Hooks:**
+
+- `frontend/src/features/admin/hooks/useAdminAuth.ts` — `login()` posts to `POST /api/auth/login`; sets auth store (`setAuth`); maps 401 → "Invalid credentials", 429 → rate-limit; navigates to `/admin/dashboard` on success
+- `frontend/src/features/admin/hooks/useTraders.ts` — `useTraders()`: paginated list with `TraderFilters` (search/channel/business_type/region/date range/page); 300ms debounce on search; refetches on filter change. `useTraderDetail(id)`: GET `/api/traders/:id`
+- `frontend/src/features/admin/hooks/useReports.ts` — `useReportSummary()`: GET `/api/reports/summary?period=...`; `useExportCsv()`: GET `/api/reports/export?format=csv` → triggers browser download; `useAuditLogs()`: paginated GET `/api/audit-logs` with action/actor/date filters
+
+**Components:**
+
+- `frontend/src/features/admin/components/StatsCard.tsx` — KPI tile: label, large numeric value (`.toLocaleString()`), coloured icon container (red/blue/green/purple), up/down trend arrow with percentage, animate-pulse skeleton loading state
+- `frontend/src/features/admin/components/FilterBar.tsx` — Trader list filter panel: debounced search input, channel select, business type select (9 options), region select (7), from/to date pickers, Reset button (clears controlled inputs including uncontrolled search ref)
+- `frontend/src/features/admin/components/TraderTable.tsx` — Full traders table: TIN (mono cu-red), name, phone, business type, region, channel Badge, registered date; row click + "View →" button navigate to detail; custom Pagination component (first/prev/page/next/last with disabled states and showing X–Y of N)
+- `frontend/src/features/admin/components/ReportSummary.tsx` — Three stacked summary tables: totals (total traders / web count+% / USSD count+%), by-region (with share %), by-business-type; cu-red header strip on totals table; generated-at timestamp footer
+- `frontend/src/features/admin/components/AuditTable.tsx` — Audit log table: action colour-coded badges (10 action types mapped to colour variants), actor ID + role, entity ID, channel, IP; click-to-expand row shows raw meta JSON in dark terminal style; Pagination
+
+**Pages:**
+
+- `frontend/src/features/admin/pages/LoginPage.tsx` — Standalone full-screen login (no AdminLayout); cu-red header strip with coat-of-arms emblem + portal title; email + password fields with zod validation; error Alert; sign-in button with loading state
+- `frontend/src/features/admin/pages/DashboardPage.tsx` — 4 KPI StatsCards (total traders / today / web / USSD); period toggle (7d / 30d / all); 2×2 chart grid: BarChart (by business type), DonutChart (web vs USSD), LineChart (daily trend), top-5 regions table with share %
+- `frontend/src/features/admin/pages/TradersPage.tsx` — FilterBar + TraderTable wired to `useTraders()`; total count in subtitle; error Alert
+- `frontend/src/features/admin/pages/TraderDetailPage.tsx` — Breadcrumb nav; avatar initial circle; TIN prominent in mono font; four info Cards (profile, personal, business, registration); back link
+- `frontend/src/features/admin/pages/ReportsPage.tsx` — Period toggle + Refresh button + Export CSV button (triggers download); ReportSummary component below
+- `frontend/src/features/admin/pages/AuditLogsPage.tsx` — Action/actor/date filter bar; expand-row hint text; AuditTable with pagination; SYS_ADMIN-only route (enforced by ProtectedRoute in router)
+
+**TypeScript fix:**
+- `DashboardPage.tsx`: replaced `.at(-1)` (ES2022) with `trend[trend.length - 1]` for tsconfig `es2021` compatibility
+
+**Notes:**
+- `npm run lint` (tsc --noEmit) passes with **zero errors**.
+- `LoginPage` renders standalone (bypasses AdminLayout) — router wraps it in a plain route without the admin layout shell.
+- All admin pages consume hooks that return typed response shapes matching the backend API contracts from Phases 2–7.
+- `useExportCsv` creates an object URL blob and triggers a `<a download>` click — no popup blocker issues.
+- `AuditTable` uses React fragment key pattern for expand rows — each log renders a data row and conditionally a detail row.
+
+---
+
 ### [PHASE 9] — Frontend: Trader Portal (5 Pages)
 **Date:** 2026-03-05
 **Agent:** Phase 9 Agent
