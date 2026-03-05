@@ -1,0 +1,50 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+env/
+venv/
+.venv/
+*.egg-info/
+dist/
+build/
+.pytest_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+
+# Django
+*.log
+local_settings.py
+db.sqlite3
+media/
+
+# Node / Frontend
+node_modules/
+dist/
+.cache/
+.parcel-cache/
+*.tsbuildinfo
+
+# Environment files
+.env
+.env.local
+.env.*.local
+backend/.env
+frontend/.env
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+
+# Docker
+*.pid
+
+# MongoDB data
+data/
+mongo-data/
