@@ -30,6 +30,37 @@
 
 ---
 
+### [PHASE 4] — Backend: Registration + TIN Module
+**Date:** 2026-03-05
+**Agent:** Phase 4 Agent
+**Status:** ✅ Complete
+
+**Files Created:**
+- `backend/apps/tin/services.py` — TINService: generate_unique_tin (crypto-random, GH-TIN-XXXXXX format, MAX_RETRIES=10, writes TIN_GENERATION_FAILED audit on exhaustion), lookup_tin (find by phone, masked name response)
+- `backend/apps/tin/serializers.py` — TINLookupRequestSerializer, TINLookupResponseSerializer
+- `backend/apps/tin/views.py` — TINLookupView: POST /api/tin/lookup, AllowAny, rate-limited 5/min per IP
+- `backend/apps/tin/urls.py` — URL routing for /api/tin/lookup
+- `backend/apps/registration/validators.py` — validate_ghana_phone (normalises to +233XXXXXXXXX, accepts +233/0/233 prefixes), validate_business_type, VALID_BUSINESS_TYPES constant
+- `backend/apps/registration/serializers.py` — TraderRegistrationSerializer (with phone_number validation), LocationInputSerializer, RegistrationResponseSerializer
+- `backend/apps/registration/services.py` — RegistrationService: register_trader_web (idempotency, find_or_create location, TIN generation, trader+business create, audit log, SMS stub), register_trader_ussd (for Phase 5 state machine), _send_tin_sms_stub (Phase 7 hook)
+- `backend/apps/registration/views.py` — RegisterTraderView: POST /api/register, AllowAny, rate-limited 20/min per IP, XFF-aware IP extraction
+- `backend/apps/registration/urls.py` — URL routing for /api/register
+
+**Files Modified:**
+- None — all Phase 1 stubs replaced with full implementations; core/urls.py already wired these correctly
+
+**Notes:**
+- All 9 new files pass `python3 -m py_compile` with zero errors.
+- Full Django import check passes (django.setup() + all class/function imports) — confirmed with live test run.
+- Phone validator accepts +233XXXXXXXXX, 0XXXXXXXXX, 233XXXXXXXXX; all normalise to +233XXXXXXXXX.
+- register_trader_web is idempotent: repeated calls with same phone return existing TIN (sms_status="skipped").
+- register_trader_ussd is a separate method (channel="ussd") used by Phase 5 state machine — same idempotency guarantee.
+- SMS sending is a stub (logs intent, returns "queued") — Phase 7 wires the real NotificationService.
+- TINGenerationError raised after 10 retries and returns HTTP 503 to client.
+- VALID_BUSINESS_TYPES list is the single source of truth shared across validators and serializers.
+
+---
+
 ### [PHASE 3] — Backend: Auth Module (JWT + RBAC)
 **Date:** 2026-03-05
 **Agent:** Phase 3 Agent
