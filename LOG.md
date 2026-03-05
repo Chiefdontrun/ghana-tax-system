@@ -30,6 +30,32 @@
 
 ---
 
+### [PHASE 9] — Frontend: Trader Portal (5 Pages)
+**Date:** 2026-03-05
+**Agent:** Phase 9 Agent
+**Status:** ✅ Complete
+
+**Files Modified (stub → full implementation):**
+
+- `frontend/src/features/trader/hooks/useRegistration.ts` — `useRegistration` hook: `submit()` posts to `POST /api/register`; `lookupTin()` posts to `POST /api/tin/lookup`; manages `result`, `tinLookupResult`, `isLoading`, `error`, `reset()` states; maps 404 → "not found" message, 429 → rate-limit message
+- `frontend/src/features/trader/components/TinDisplay.tsx` — TIN display component: prominent `font-mono` cu-red large text, copy-to-clipboard (with `navigator.clipboard` + textarea fallback), print button, print-friendly styling
+- `frontend/src/features/trader/components/RegistrationForm.tsx` — Two-step registration form using `react-hook-form` + `zod`: Step 1 (name + phone with Ghana regex validation), Step 2 (business type select, region select, district + market text inputs); animated step indicator with checkmark on completed steps; `serverError` Alert; `onSuccess` callback with typed `RegistrationPayload`
+- `frontend/src/features/trader/pages/LandingPage.tsx` — Full portal landing: hero with Ghana coat-of-arms SVG, headline + subtitle, two CTAs (Register / Check TIN), stats row (1,200+ traders / 10 districts / 2 channels), three-step How It Works cards with icons, cu-red USSD banner with *XXX# code
+- `frontend/src/features/trader/pages/RegisterPage.tsx` — Wraps `RegistrationForm`; uses `useRegistration` hook; `useEffect` watches `result` and navigates to `/register/success` with `{ tin, name, phone }` in location state on success
+- `frontend/src/features/trader/pages/RegistrationSuccessPage.tsx` — Success page: green checkmark, `TinDisplay` component, amber "screenshot your TIN" warning, blue SMS notice, two action buttons (Register Another / Check TIN); `useEffect` guard redirects to `/register` if accessed without location state
+- `frontend/src/features/trader/pages/CheckTinPage.tsx` — Phone number form with Ghana regex validation; calls `lookupTin()`; shows green result card (TIN + masked name + status Badge) on success, or Alert (error / warning for 429) on failure
+- `frontend/src/features/trader/pages/HelpPage.tsx` — FAQ accordion (5 questions, open/close via local state), USSD terminal mockup (dark bg, mono font, step-by-step session simulation), numbered USSD guide steps, contact cards (address + phone), placeholder PDF download button (disabled, "coming soon")
+
+**Notes:**
+- `npm run lint` (tsc --noEmit) passes with **zero errors**.
+- `useRegistration` is instantiated fresh per page — result state is intentionally local and one-time, not persisted in a global store.
+- Registration success navigates with `replace: true` so pressing Back from the success page goes to Home, not back into the form.
+- `RegistrationForm` uses `trigger(["name", "phone_number"])` to validate only step-1 fields before advancing to step 2 — step-2 fields are validated on final submit.
+- `CheckTinPage` uses `reset()` before each lookup so stale results are cleared.
+- All pages use the `PublicLayout` (Header + Footer) via the router — no layout code duplicated in pages.
+
+---
+
 ### [PHASE 8] — Frontend: Design System + Shared Layout Components
 **Date:** 2026-03-05
 **Agent:** Phase 8 Agent
