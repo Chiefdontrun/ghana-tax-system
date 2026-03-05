@@ -8,13 +8,20 @@ interface LoginPayload {
   password: string;
 }
 
-interface LoginResponse {
+interface LoginResponseData {
   access: string;
   refresh: string;
   role: "SYS_ADMIN" | "TAX_ADMIN";
   admin_id: string;
   email: string;
   name: string;
+}
+
+// Backend wraps all responses: { success, message, data: { ... } }
+interface LoginResponse {
+  success: boolean;
+  message: string;
+  data: LoginResponseData;
 }
 
 interface UseAdminAuthReturn {
@@ -34,7 +41,7 @@ export function useAdminAuth(): UseAdminAuthReturn {
     setError(null);
     try {
       const response = await api.post<LoginResponse>("/api/auth/login", payload);
-      const { access, refresh, role, admin_id, email } = response.data;
+      const { access, refresh, role, admin_id, email } = response.data.data;
       setAuth({ accessToken: access, refreshToken: refresh, role, adminId: admin_id, email });
       navigate("/admin/dashboard", { replace: true });
     } catch (err: unknown) {

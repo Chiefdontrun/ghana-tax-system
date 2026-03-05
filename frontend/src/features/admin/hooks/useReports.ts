@@ -47,11 +47,21 @@ export interface AuditLog {
 }
 
 interface AuditLogsResponse {
-  logs: AuditLog[];
-  total: number;
-  page: number;
-  page_size: number;
-  total_pages: number;
+  success: boolean;
+  message: string;
+  data: AuditLog[];
+  pagination: {
+    total: number;
+    page: number;
+    page_size: number;
+    total_pages: number;
+  };
+}
+
+interface ReportSummaryResponse {
+  success: boolean;
+  message: string;
+  data: ReportSummaryData;
 }
 
 export interface AuditFilters {
@@ -83,10 +93,10 @@ export function useReportSummary(): UseReportSummaryReturn {
     setIsLoading(true);
     setError(null);
     try {
-      const response = await api.get<ReportSummaryData>(
+      const response = await api.get<ReportSummaryResponse>(
         `/api/reports/summary?period=${period}`
       );
-      setData(response.data);
+      setData(response.data.data);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load report.");
     } finally {
@@ -162,9 +172,9 @@ export function useAuditLogs(): UseAuditLogsReturn {
         if (v !== undefined && v !== "") qs.set(k, String(v));
       });
       const response = await api.get<AuditLogsResponse>(`/api/audit-logs?${qs.toString()}`);
-      setLogs(response.data.logs);
-      setTotal(response.data.total);
-      setTotalPages(response.data.total_pages);
+      setLogs(response.data.data);
+      setTotal(response.data.pagination.total);
+      setTotalPages(response.data.pagination.total_pages);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load audit logs.");
     } finally {

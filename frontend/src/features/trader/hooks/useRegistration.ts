@@ -36,6 +36,12 @@ interface UseRegistrationReturn {
   reset: () => void;
 }
 
+interface ApiResponse<T> {
+  success: boolean;
+  message: string;
+  data: T;
+}
+
 export function useRegistration(): UseRegistrationReturn {
   const [result, setResult] = useState<RegistrationResult | null>(null);
   const [tinLookupResult, setTinLookupResult] = useState<TinLookupResult | null>(null);
@@ -46,8 +52,8 @@ export function useRegistration(): UseRegistrationReturn {
     setIsLoading(true);
     setError(null);
     try {
-      const response = await api.post<RegistrationResult>("/api/register", data);
-      setResult({ ...response.data, phone_number: data.phone_number });
+      const response = await api.post<ApiResponse<RegistrationResult>>("/api/register", data);
+      setResult({ ...response.data.data, phone_number: data.phone_number });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Registration failed. Please try again.");
       throw err;
@@ -61,11 +67,11 @@ export function useRegistration(): UseRegistrationReturn {
     setError(null);
     setTinLookupResult(null);
     try {
-      const response = await api.post<TinLookupResult>("/api/tin/lookup", {
+      const response = await api.post<ApiResponse<TinLookupResult>>("/api/tin/lookup", {
         phone_number: phone,
       });
-      setTinLookupResult(response.data);
-      return response.data;
+      setTinLookupResult(response.data.data);
+      return response.data.data;
     } catch (err: unknown) {
       const axiosErr = err as { response?: { status?: number } };
       if (axiosErr?.response?.status === 404) {

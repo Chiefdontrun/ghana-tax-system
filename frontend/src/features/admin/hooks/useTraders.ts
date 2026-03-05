@@ -32,11 +32,21 @@ export interface TraderFilters {
 }
 
 interface TradersResponse {
-  traders: Trader[];
-  total: number;
-  page: number;
-  page_size: number;
-  total_pages: number;
+  success: boolean;
+  message: string;
+  data: Trader[];
+  pagination: {
+    total: number;
+    page: number;
+    page_size: number;
+    total_pages: number;
+  };
+}
+
+interface TraderDetailResponse {
+  success: boolean;
+  message: string;
+  data: TraderDetail;
 }
 
 interface UseTradersReturn {
@@ -86,9 +96,9 @@ export function useTraders(): UseTradersReturn {
         if (v !== undefined && v !== "") qs.set(k, String(v));
       });
       const response = await api.get<TradersResponse>(`/api/traders?${qs.toString()}`);
-      setTraders(response.data.traders);
-      setTotal(response.data.total);
-      setTotalPages(response.data.total_pages);
+      setTraders(response.data.data);
+      setTotal(response.data.pagination.total);
+      setTotalPages(response.data.pagination.total_pages);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load traders.");
     } finally {
@@ -145,8 +155,8 @@ export function useTraderDetail(traderId: string): UseTraderDetailReturn {
     setIsLoading(true);
     setError(null);
     api
-      .get<TraderDetail>(`/api/traders/${traderId}`)
-      .then((r) => setTrader(r.data))
+      .get<TraderDetailResponse>(`/api/traders/${traderId}`)
+      .then((r) => setTrader(r.data.data))
       .catch((err) => setError(err instanceof Error ? err.message : "Failed to load trader."))
       .finally(() => setIsLoading(false));
   }, [traderId]);
