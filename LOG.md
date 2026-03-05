@@ -30,6 +30,34 @@
 
 ---
 
+### [PHASE 5] — Backend: USSD Gateway Module
+**Date:** 2026-03-05
+**Agent:** Phase 5 Agent
+**Status:** ✅ Complete
+
+**Files Created:**
+- `backend/apps/ussd/validators.py` — validate_ussd_name (3–60 chars), validate_ussd_market (≤80 chars), validate_ussd_phone (Ghana regex), normalise_phone (+233XXXXXXXXX normalisation)
+- `backend/apps/ussd/state_machine.py` — USSDStateMachine: full 9-state flow (MAIN_MENU → REG_NAME → REG_BUSINESS_TYPE → REG_REGION → REG_DISTRICT → REG_CONFIRM → COMPLETE; CHECK_TIN; HELP); parses AT *-delimited text history; restores session from USSDSessionStore; writes USSD_SESSION_STEP + USSD_REG_COMPLETE audit logs; calls RegistrationService.register_trader_ussd on confirm
+- `backend/apps/ussd/views.py` — USSDCallbackView: csrf_exempt, rate-limited 100/min per IP, AT webhook payload parsing (sessionId/serviceCode/phoneNumber/text), plain-text Content-Type response
+- `backend/apps/ussd/urls.py` — URL routing for /ussd/callback
+
+**Files Modified:**
+- `backend/apps/ussd/session_store.py` — already fully implemented by Phase 2 agent; no changes needed
+
+**Notes:**
+- All 4 new files pass py_compile with zero errors.
+- Full Django import + assertion check passes (validators, state machine instantiation, all state constants, USSDCallbackView).
+- State machine parses AT `text` field as `*`-delimited history; always takes last segment as current input.
+- Session is created on first dial (text=""), restored from Redis/Mongo on subsequent steps.
+- On invalid input, steps re-display their own prompt — no session reset.
+- "2. Start Over" on confirm screen resets collected data to MAIN_MENU without deleting the session.
+- CHECK_TIN: "0" uses caller's own MSISDN; any other input is validated as Ghana phone and normalised.
+- HELP goes straight to END (no session persisted).
+- register_trader_ussd called with channel="ussd"; idempotent — re-uses existing TIN if msisdn already registered.
+- TINGenerationError maps to graceful END response so user isn't left in a broken session.
+
+---
+
 ### [PHASE 4] — Backend: Registration + TIN Module
 **Date:** 2026-03-05
 **Agent:** Phase 4 Agent
