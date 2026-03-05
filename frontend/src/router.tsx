@@ -4,7 +4,6 @@
  */
 
 import { createBrowserRouter, RouterProvider, Navigate } from "react-router-dom";
-import { useAuthStore } from "@/store/authStore";
 
 // ── Trader pages (Phase 9) ────────────────────────────────────────────────────
 import LandingPage from "@/features/trader/pages/LandingPage";
