@@ -1,4 +1,12 @@
-"""auth_app URL configuration — implemented in Phase 3."""
-from django.urls import path
+"""
+auth_app URL configuration — /api/auth/...
+"""
 
-urlpatterns = []
+from django.urls import path
+from apps.auth_app.views import LoginView, RefreshView, MeView
+
+urlpatterns = [
+    path("login", LoginView.as_view(), name="auth-login"),
+    path("refresh", RefreshView.as_view(), name="auth-refresh"),
+    path("me", MeView.as_view(), name="auth-me"),
+]
