@@ -1,4 +1,5 @@
 # Digital Taxation & Revenue Tracking System
+
 # Phase Plan — Ghana District Assembly Revenue Unit
 
 > **System:** Multi-channel tax registration & monitoring platform
@@ -172,28 +173,26 @@ ghana-tax-system/
         └── init.js                  ← MongoDB index creation script
 ```
 
-
 ---
 
 ## PHASE OVERVIEW TABLE
 
-| Phase | Title | Depends On | Complexity |
-|-------|-------|------------|------------|
-| 1 | Project Scaffold & Infra | — | Low |
-| 2 | MongoDB Data Layer & Seed | 1 | Medium |
-| 3 | Backend: Auth Module (JWT + RBAC) | 2 | Medium |
-| 4 | Backend: Registration + TIN Module | 3 | High |
-| 5 | Backend: USSD Gateway Module | 4 | High |
-| 6 | Backend: Reports, Audit & Admin APIs | 3, 4 | Medium |
-| 7 | Backend: Notifications Module + Tests | 4, 5, 6 | Medium |
-| 8 | Frontend: Design System + Shared Layout | 1 | Medium |
-| 9 | Frontend: Trader Portal (5 pages) | 8 | Medium |
-| 10 | Frontend: Admin Portal (6 pages) | 8, 3, 6 | High |
-| 11 | Integration & End-to-End Wiring | All | High |
-| 12 | Testing Suite | All | Medium |
+| Phase | Title                                   | Depends On | Complexity |
+| ----- | --------------------------------------- | ---------- | ---------- |
+| 1     | Project Scaffold & Infra                | —          | Low        |
+| 2     | MongoDB Data Layer & Seed               | 1          | Medium     |
+| 3     | Backend: Auth Module (JWT + RBAC)       | 2          | Medium     |
+| 4     | Backend: Registration + TIN Module      | 3          | High       |
+| 5     | Backend: USSD Gateway Module            | 4          | High       |
+| 6     | Backend: Reports, Audit & Admin APIs    | 3, 4       | Medium     |
+| 7     | Backend: Notifications Module + Tests   | 4, 5, 6    | Medium     |
+| 8     | Frontend: Design System + Shared Layout | 1          | Medium     |
+| 9     | Frontend: Trader Portal (5 pages)       | 8          | Medium     |
+| 10    | Frontend: Admin Portal (6 pages)        | 8, 3, 6    | High       |
+| 11    | Integration & End-to-End Wiring         | All        | High       |
+| 12    | Testing Suite                           | All        | Medium     |
 
 ---
-
 
 ---
 
@@ -206,6 +205,7 @@ ghana-tax-system/
 ### 1.1 — Monorepo Root & Infra
 
 **Files to Create:**
+
 ```
 /ghana-tax-system/README.md
 /ghana-tax-system/.gitignore
@@ -217,12 +217,14 @@ ghana-tax-system/
 ```
 
 **docker-compose.yml must include services:**
+
 - `mongodb` — mongo:7 community, port 27017, volume persisted
 - `redis` — redis:7-alpine, port 6379
 - `backend` — Python 3.10, build from ./backend, port 8000
 - `frontend` — Node 20, build from ./frontend, port 5173 (dev) / 80 (prod)
 
 **infra/.env.example must define:**
+
 ```
 MONGO_URI=mongodb://mongodb:27017/ghana_tax_db
 MONGO_DB_NAME=ghana_tax_db
@@ -242,6 +244,7 @@ SEED_ADMIN_PASSWORD=DemoPass123!
 ```
 
 **mongo-init/init.js must create all indexes:**
+
 ```javascript
 // traders collection
 db.traders.createIndex({ tin_number: 1 }, { unique: true });
@@ -256,12 +259,16 @@ db.audit_logs.createIndex({ actor_id: 1 });
 db.audit_logs.createIndex({ action: 1 });
 // ussd_sessions
 db.ussd_sessions.createIndex({ session_id: 1 }, { unique: true });
-db.ussd_sessions.createIndex({ last_activity_at: 1 }, { expireAfterSeconds: 1800 });
+db.ussd_sessions.createIndex(
+  { last_activity_at: 1 },
+  { expireAfterSeconds: 1800 },
+);
 ```
 
 ### 1.2 — Backend Scaffold
 
 **Files to Create:**
+
 ```
 /ghana-tax-system/backend/manage.py
 /ghana-tax-system/backend/requirements.txt
@@ -290,6 +297,7 @@ db.ussd_sessions.createIndex({ last_activity_at: 1 }, { expireAfterSeconds: 1800
 ```
 
 **requirements.txt must include:**
+
 ```
 Django==4.2.*
 djangorestframework==3.14.*
@@ -306,6 +314,7 @@ factory-boy==3.3.*
 ```
 
 **settings.py must:**
+
 - Use `python-decouple` for all env vars
 - Configure DRF with JWT authentication class (custom)
 - Configure CORS from env
@@ -315,6 +324,7 @@ factory-boy==3.3.*
 ### 1.3 — Frontend Scaffold
 
 **Files to Create:**
+
 ```
 /ghana-tax-system/frontend/package.json
 /ghana-tax-system/frontend/vite.config.ts
@@ -337,10 +347,12 @@ factory-boy==3.3.*
 ```
 
 **package.json dependencies must include:**
+
 ```json
 {
   "dependencies": {
-    "react": "^18", "react-dom": "^18",
+    "react": "^18",
+    "react-dom": "^18",
     "react-router-dom": "^6",
     "axios": "^1",
     "zustand": "^4",
@@ -363,23 +375,25 @@ factory-boy==3.3.*
 ```
 
 **globals.css must define CSS variables:**
+
 ```css
 :root {
-  --cu-red: #8A1020;
-  --cu-red-dark: #640B15;
-  --cu-red-light: #B91C35;
-  --cu-white: #FFFFFF;
-  --cu-bg: #F5F6F8;
-  --cu-border: #E5E7EB;
+  --cu-red: #8a1020;
+  --cu-red-dark: #640b15;
+  --cu-red-light: #b91c35;
+  --cu-white: #ffffff;
+  --cu-bg: #f5f6f8;
+  --cu-border: #e5e7eb;
   --cu-text: #111827;
-  --cu-text-muted: #6B7280;
-  --cu-shadow: 0 1px 3px rgba(0,0,0,0.08);
+  --cu-text-muted: #6b7280;
+  --cu-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
 }
 ```
 
 **tailwind.config.ts must extend theme with CU color tokens.**
 
 **router.tsx must define all routes (pages can be empty stubs):**
+
 - `/` → LandingPage
 - `/register` → RegisterPage
 - `/register/success` → RegistrationSuccessPage
@@ -396,7 +410,6 @@ factory-boy==3.3.*
 
 ---
 
-
 ## PHASE 2 — MongoDB Data Layer & Seed Script
 
 **Agent Instructions:** Read LOG.md first. Verify Phase 1 is complete. Implement the MongoDB connection singleton, all repository base classes, collection schema constants, and the full seed script with dummy data.
@@ -406,6 +419,7 @@ factory-boy==3.3.*
 ### 2.1 — MongoDB Connection & Core Utils
 
 **Files to Create/Implement:**
+
 ```
 /ghana-tax-system/backend/core/utils/mongo.py
 /ghana-tax-system/backend/core/utils/response.py
@@ -413,6 +427,7 @@ factory-boy==3.3.*
 ```
 
 **mongo.py must:**
+
 - Create a singleton `MongoClient` using `MONGO_URI` from env
 - Expose `get_db()` function returning the database instance
 - Handle connection errors gracefully with retry logic
@@ -427,6 +442,7 @@ factory-boy==3.3.*
   ```
 
 **response.py must provide:**
+
 ```python
 def success_response(data, message="", status=200): ...
 def error_response(message, errors=None, status=400): ...
@@ -434,6 +450,7 @@ def paginated_response(data, total, page, page_size): ...
 ```
 
 **pagination.py must provide:**
+
 ```python
 def get_pagination_params(request) -> dict:  # returns {skip, limit, page, page_size}
 def apply_pagination(queryset, skip, limit): ...
@@ -442,6 +459,7 @@ def apply_pagination(queryset, skip, limit): ...
 ### 2.2 — Repository Base Classes
 
 **Files to Create:**
+
 ```
 /ghana-tax-system/backend/apps/auth_app/repository.py
 /ghana-tax-system/backend/apps/registration/repository.py
@@ -452,6 +470,7 @@ def apply_pagination(queryset, skip, limit): ...
 ```
 
 **auth_app/repository.py — AdminRepository:**
+
 ```python
 class AdminRepository:
     def find_by_email(self, email: str) -> dict | None
@@ -463,6 +482,7 @@ class AdminRepository:
 ```
 
 **registration/repository.py — TraderRepository + BusinessRepository + LocationRepository:**
+
 ```python
 class TraderRepository:
     def create(self, trader_data: dict) -> dict
@@ -485,6 +505,7 @@ class LocationRepository:
 ```
 
 **tin/repository.py — TINRepository:**
+
 ```python
 class TINRepository:
     def exists(self, tin_number: str) -> bool
@@ -492,6 +513,7 @@ class TINRepository:
 ```
 
 **reports/repository.py — ReportsRepository:**
+
 ```python
 class ReportsRepository:
     def summary_by_channel(self, date_filter: dict) -> list[dict]   # aggregation
@@ -503,6 +525,7 @@ class ReportsRepository:
 ```
 
 **audit/repository.py — AuditRepository:**
+
 ```python
 class AuditRepository:
     def log(self, event_data: dict) -> None
@@ -510,6 +533,7 @@ class AuditRepository:
 ```
 
 **ussd/session_store.py — USSDSessionStore:**
+
 ```python
 class USSDSessionStore:
     # Tries Redis first, falls back to MongoDB ussd_sessions
@@ -521,6 +545,7 @@ class USSDSessionStore:
 ### 2.3 — Seed Script
 
 **File to Implement:**
+
 ```
 /ghana-tax-system/backend/management/commands/seed_demo_data.py
 ```
@@ -528,11 +553,13 @@ class USSDSessionStore:
 **Must create (idempotent — skip if data exists):**
 
 **Admins (3 total):**
+
 - `sysadmin@demo.gov.gh` / `DemoPass123!` — role: `SYS_ADMIN`
 - `taxadmin1@demo.gov.gh` / `DemoPass123!` — role: `TAX_ADMIN`
 - `taxadmin2@demo.gov.gh` / `DemoPass123!` — role: `TAX_ADMIN`
 
 **Locations (10 — spread across Ghana regions):**
+
 - Greater Accra: Accra Central Market, Kaneshie Market, Makola Market
 - Ashanti: Kumasi Central Market, Asafo Market
 - Western: Takoradi Market, Sekondi Market
@@ -541,6 +568,7 @@ class USSDSessionStore:
 - Volta: Ho Central Market
 
 **Traders (100 total):**
+
 - Spread across all 10 locations
 - Business types distributed: `food_vendor`, `clothing`, `electronics`, `services`, `agriculture`, `wholesale`, `retail`, `artisan`
 - Channel mix: ~60 web, ~40 ussd
@@ -548,6 +576,7 @@ class USSDSessionStore:
 - Each trader linked to 1 business record + 1 location
 
 **Audit Logs (200+ entries):**
+
 - LOGIN_SUCCESS / LOGIN_FAIL events for admins
 - CREATE_TRADER events for all seeded traders
 - EXPORT_REPORT events (a few)
@@ -556,7 +585,6 @@ class USSDSessionStore:
 **After completing Phase 2, update LOG.md.**
 
 ---
-
 
 ## PHASE 3 — Backend: Auth Module (JWT + RBAC)
 
@@ -567,6 +595,7 @@ class USSDSessionStore:
 ### 3.1 — JWT Utilities
 
 **Files to Create/Implement:**
+
 ```
 /ghana-tax-system/backend/apps/auth_app/jwt_utils.py
 /ghana-tax-system/backend/apps/auth_app/permissions.py
@@ -574,6 +603,7 @@ class USSDSessionStore:
 ```
 
 **jwt_utils.py must implement:**
+
 ```python
 def generate_access_token(admin_id: str, role: str) -> str:
     # Uses PyJWT, expires in JWT_ACCESS_TOKEN_EXPIRE_MINUTES
@@ -591,6 +621,7 @@ def get_token_from_request(request) -> str:
 ```
 
 **permissions.py must define DRF permission classes:**
+
 ```python
 class IsAdminAuthenticated(BasePermission):
     # Verifies JWT access token, attaches admin to request.admin
@@ -605,6 +636,7 @@ class IsSysAdmin(IsAdminAuthenticated):
 ### 3.2 — Auth Views & Serializers
 
 **Files to Create/Implement:**
+
 ```
 /ghana-tax-system/backend/apps/auth_app/serializers.py
 /ghana-tax-system/backend/apps/auth_app/services.py
@@ -615,6 +647,7 @@ class IsSysAdmin(IsAdminAuthenticated):
 **Endpoints to implement:**
 
 **POST /api/auth/login**
+
 - Request: `{email, password}`
 - Validate email + password against admins collection (bcrypt verify)
 - On success: return `{access, refresh, role, admin_id, name}`
@@ -623,26 +656,31 @@ class IsSysAdmin(IsAdminAuthenticated):
 - Rate limit: 10 requests/minute per IP
 
 **POST /api/auth/refresh**
+
 - Request: `{refresh}` token
 - Validate refresh token
 - Return new `{access}` token
 - Rate limit: 20 requests/minute per IP
 
 **GET /api/me**
+
 - Protected (IsAdminAuthenticated)
 - Return: `{admin_id, email, role, name, last_login_at}`
 
 **POST /api/admin/users** (SYS_ADMIN only)
+
 - Create a new admin
 - Hash password with bcrypt
 - Write audit log: `CREATE_ADMIN`
 
 **PATCH /api/admin/users/{admin_id}** (SYS_ADMIN only)
+
 - Update role or is_active
 - Write audit log: `ROLE_CHANGE` or `STATUS_CHANGE`
 - Cannot modify own account role
 
 **GET /api/admin/users** (SYS_ADMIN only)
+
 - List all admins
 - Return: `[{admin_id, email, role, is_active, created_at, last_login_at}]`
 
@@ -661,6 +699,7 @@ class IsSysAdmin(IsAdminAuthenticated):
 ### 4.1 — TIN Generation Service
 
 **Files to Create/Implement:**
+
 ```
 /ghana-tax-system/backend/apps/tin/services.py
 /ghana-tax-system/backend/apps/tin/views.py
@@ -669,6 +708,7 @@ class IsSysAdmin(IsAdminAuthenticated):
 ```
 
 **TIN generation algorithm (tin/services.py):**
+
 ```python
 class TINService:
     TIN_PREFIX = "GH-TIN-"
@@ -694,6 +734,7 @@ class TINService:
 ```
 
 **POST /api/tin/lookup endpoint:**
+
 - Request: `{phone_number}`
 - Validate phone format (Ghana: +233XXXXXXXXX or 0XXXXXXXXX)
 - Return masked result or 404
@@ -702,6 +743,7 @@ class TINService:
 ### 4.2 — Registration Service
 
 **Files to Create/Implement:**
+
 ```
 /ghana-tax-system/backend/apps/registration/services.py
 /ghana-tax-system/backend/apps/registration/serializers.py
@@ -711,6 +753,7 @@ class TINService:
 ```
 
 **validators.py must implement:**
+
 ```python
 def validate_ghana_phone(phone: str) -> str:
     # Accepts: +233XXXXXXXXX, 0XXXXXXXXX, 233XXXXXXXXX
@@ -724,6 +767,7 @@ VALID_BUSINESS_TYPES = [
 ```
 
 **RegistrationService:**
+
 ```python
 class RegistrationService:
     def register_trader_web(self, validated_data: dict, ip_address: str) -> dict:
@@ -741,6 +785,7 @@ class RegistrationService:
 ```
 
 **POST /api/register endpoint:**
+
 - Request body:
   ```json
   {
@@ -769,7 +814,6 @@ class RegistrationService:
 
 ---
 
-
 ## PHASE 5 — Backend: USSD Gateway Module
 
 **Agent Instructions:** Read LOG.md first. Verify Phase 4 is complete. Implement the full USSD state machine, webhook receiver, and session management.
@@ -779,6 +823,7 @@ class RegistrationService:
 ### 5.1 — USSD State Machine
 
 **Files to Create/Implement:**
+
 ```
 /ghana-tax-system/backend/apps/ussd/state_machine.py
 /ghana-tax-system/backend/apps/ussd/session_store.py  (implement fully)
@@ -790,6 +835,7 @@ class RegistrationService:
 **state_machine.py — USSDStateMachine:**
 
 States (use string constants):
+
 ```python
 STATE_MAIN_MENU = "MAIN_MENU"
 STATE_REG_NAME = "REG_NAME"
@@ -865,7 +911,7 @@ CON Step 5 of 5 - Confirm
     Name: {name}
     Business: {business_type}
     Location: {region} - {market_name}
-    
+
     1. Confirm & Register
     2. Start Over
 
@@ -895,6 +941,7 @@ END For help registering:
 ```
 
 **USSD webhook must:**
+
 - Accept Africa's Talking payload: `{sessionId, serviceCode, phoneNumber, text}`
 - Parse `text` as `*` delimited history string (e.g., `"1*John Doe*2"`)
 - Restore session from Redis/Mongo
@@ -904,6 +951,7 @@ END For help registering:
 - Response time target: ≤10 seconds
 
 **POST /ussd/callback endpoint** (no auth required — webhook):
+
 - Rate limit: 100 requests/minute per IP (DoS protection)
 - Log every request
 
@@ -920,6 +968,7 @@ END For help registering:
 ### 6.1 — Reports Service
 
 **Files to Create/Implement:**
+
 ```
 /ghana-tax-system/backend/apps/reports/services.py
 /ghana-tax-system/backend/apps/reports/serializers.py
@@ -928,6 +977,7 @@ END For help registering:
 ```
 
 **GET /api/reports/summary** (TAX_ADMIN or SYS_ADMIN):
+
 - Query params: `period=7d|30d|all`
 - Response:
   ```json
@@ -945,12 +995,14 @@ END For help registering:
 - Must complete in ≤3 seconds for 10,000+ records
 
 **GET /api/reports/export** (TAX_ADMIN or SYS_ADMIN):
+
 - Query params: same filters as /api/traders + `format=csv`
 - Returns CSV file download
 - Columns: `TIN,Name,Phone,Business Type,Region,District,Market,Channel,Registered At`
 - Write audit log: `EXPORT_REPORT`
 
 **GET /api/traders** (TAX_ADMIN or SYS_ADMIN):
+
 - Query params:
   - `channel=web|ussd`
   - `business_type=string`
@@ -966,11 +1018,13 @@ END For help registering:
 - Must use MongoDB indexes for all filter fields
 
 **GET /api/traders/{trader_id}** (TAX_ADMIN or SYS_ADMIN):
+
 - Full trader detail including business info and location
 
 ### 6.2 — Audit Log API
 
 **Files to Create/Implement:**
+
 ```
 /ghana-tax-system/backend/apps/audit/views.py
 /ghana-tax-system/backend/apps/audit/urls.py
@@ -978,6 +1032,7 @@ END For help registering:
 ```
 
 **GET /api/audit-logs** (SYS_ADMIN only):
+
 - Query params:
   - `action=string`
   - `actor_id=string`
@@ -989,7 +1044,6 @@ END For help registering:
 
 ---
 
-
 ## PHASE 7 — Backend: Notifications Module + Full Test Suite ✅ COMPLETE
 
 **Agent Instructions:** Read LOG.md first. Verify Phases 4-6 are complete. Implement the notification abstraction layer and all backend tests.
@@ -999,6 +1053,7 @@ END For help registering:
 ### 7.1 — Notifications Module
 
 **Files to Create/Implement:**
+
 ```
 /ghana-tax-system/backend/apps/notifications/providers/base.py
 /ghana-tax-system/backend/apps/notifications/providers/africas_talking.py
@@ -1007,6 +1062,7 @@ END For help registering:
 ```
 
 **base.py:**
+
 ```python
 class SMSProvider(ABC):
     @abstractmethod
@@ -1015,6 +1071,7 @@ class SMSProvider(ABC):
 ```
 
 **stub.py:**
+
 ```python
 class StubSMSProvider(SMSProvider):
     def send_sms(self, phone, message):
@@ -1023,6 +1080,7 @@ class StubSMSProvider(SMSProvider):
 ```
 
 **africas_talking.py:**
+
 ```python
 class AfricasTalkingProvider(SMSProvider):
     def send_sms(self, phone, message):
@@ -1031,6 +1089,7 @@ class AfricasTalkingProvider(SMSProvider):
 ```
 
 **services.py — NotificationService:**
+
 ```python
 class NotificationService:
     def send_tin_sms(self, phone: str, tin: str, name: str) -> dict:
@@ -1041,6 +1100,7 @@ class NotificationService:
 ### 7.2 — Backend Tests
 
 **Files to Create:**
+
 ```
 /ghana-tax-system/backend/tests/__init__.py
 /ghana-tax-system/backend/tests/test_tin.py
@@ -1053,6 +1113,7 @@ class NotificationService:
 ```
 
 **test_tin.py must include:**
+
 - `test_tin_format_is_correct()` — verify GH-TIN-XXXXXX format
 - `test_tin_uniqueness_100k()` — generate 100,000 TINs, assert no duplicates
 - `test_tin_generation_speed()` — 1,000 TINs in <5 seconds
@@ -1060,6 +1121,7 @@ class NotificationService:
 - `test_tin_fails_after_max_retries()` — verify TINGenerationError raised
 
 **test_registration.py must include:**
+
 - `test_web_registration_success()` — full happy path
 - `test_web_registration_duplicate_phone_returns_existing_tin()`
 - `test_web_registration_invalid_phone_returns_400()`
@@ -1067,6 +1129,7 @@ class NotificationService:
 - `test_tin_lookup_found()` and `test_tin_lookup_not_found()`
 
 **test_ussd.py must include:**
+
 - `test_ussd_initial_shows_main_menu()`
 - `test_ussd_full_registration_flow()` — simulate all 5 steps, verify trader created
 - `test_ussd_invalid_input_shows_error()`
@@ -1076,6 +1139,7 @@ class NotificationService:
 - `test_ussd_registration_appears_in_traders_list()` — integration test
 
 **test_auth.py must include:**
+
 - `test_login_success_returns_tokens()`
 - `test_login_wrong_password_returns_401()`
 - `test_access_protected_route_without_token_returns_401()`
@@ -1083,12 +1147,14 @@ class NotificationService:
 - `test_token_refresh_works()`
 
 **test_reports.py must include:**
+
 - `test_summary_returns_correct_totals()`
 - `test_summary_by_channel_correct()`
 - `test_export_csv_returns_correct_columns()`
 - `test_summary_performance_under_3s()` — with 10k seeded records
 
 **conftest.py must provide:**
+
 - `test_db` fixture — isolated test MongoDB database
 - `sys_admin_token` fixture
 - `tax_admin_token` fixture
@@ -1107,6 +1173,7 @@ class NotificationService:
 ### 8.1 — Theme & Global Styles
 
 **Files to Create/Implement:**
+
 ```
 /ghana-tax-system/frontend/src/styles/globals.css       (implement fully)
 /ghana-tax-system/frontend/src/styles/theme.ts
@@ -1114,6 +1181,7 @@ class NotificationService:
 ```
 
 **tailwind.config.ts must extend:**
+
 ```typescript
 theme: {
   extend: {
@@ -1136,6 +1204,7 @@ theme: {
 ### 8.2 — UI Primitive Components
 
 **Files to Create:**
+
 ```
 /ghana-tax-system/frontend/src/components/ui/Button.tsx
 /ghana-tax-system/frontend/src/components/ui/Input.tsx
@@ -1157,6 +1226,7 @@ theme: {
 ### 8.3 — Layout Components
 
 **Files to Create:**
+
 ```
 /ghana-tax-system/frontend/src/components/layout/Header.tsx
 /ghana-tax-system/frontend/src/components/layout/Footer.tsx
@@ -1167,18 +1237,21 @@ theme: {
 ```
 
 **Header.tsx must include:**
+
 - Top strip: Ghana coat of arms placeholder (SVG circle) + "DISTRICT ASSEMBLY – REVENUE UNIT" text
 - Background: `cu-red`, text: white
 - Navigation links (public: Home, Register, Check TIN, Help)
 - Fully responsive (hamburger on mobile)
 
 **Sidebar.tsx (admin):**
+
 - Logo/title at top
 - Nav items: Dashboard, Traders, Reports, Audit Logs (SYS_ADMIN only)
 - Logout button at bottom
 - Active state: cu-red left border
 
 **ProtectedRoute.tsx:**
+
 - Checks authStore for valid token
 - Optional `requiredRole` prop for SYS_ADMIN gating
 - Redirects to /admin/login if not authenticated
@@ -1186,6 +1259,7 @@ theme: {
 ### 8.4 — Charts Components
 
 **Files to Create:**
+
 ```
 /ghana-tax-system/frontend/src/components/charts/BarChart.tsx
 /ghana-tax-system/frontend/src/components/charts/LineChart.tsx
@@ -1193,6 +1267,7 @@ theme: {
 ```
 
 Use `recharts` library. Each chart must:
+
 - Accept generic `data` and `keys` props
 - Use cu-red as primary color
 - Include responsive container
@@ -1201,7 +1276,6 @@ Use `recharts` library. Each chart must:
 **After completing Phase 8, update LOG.md.**
 
 ---
-
 
 ## PHASE 9 — Frontend: Trader Portal (5 Pages)
 
@@ -1223,6 +1297,7 @@ All pages match CU red/white portal style.
 ```
 
 Layout:
+
 - Hero section: Ghana coat of arms, "Digital Taxation & Revenue System", "District Assembly Revenue Unit"
 - Brief description of the system
 - Two prominent CTA buttons:
@@ -1230,7 +1305,7 @@ Layout:
   - "Check My TIN" → /check-tin (secondary)
 - Stats row: "1,200+ Registered Traders | 10 Districts | 2 Channels"
 - How it works: 3 steps with icons (1. Fill form → 2. Get TIN → 3. Stay compliant)
-- USSD banner: "No internet? Dial *XXX# to register via phone" (cu-red banner)
+- USSD banner: "No internet? Dial \*XXX# to register via phone" (cu-red banner)
 
 ---
 
@@ -1243,6 +1318,7 @@ Layout:
 ```
 
 Form fields (use react-hook-form + zod):
+
 - Full Name (required, min 3 chars)
 - Phone Number (required, Ghana format +233XXXXXXXXX / 0XXXXXXXXX)
 - Business Type (dropdown/select — 9 options)
@@ -1251,6 +1327,7 @@ Form fields (use react-hook-form + zod):
 - Market / Community Name (text input)
 
 UX requirements:
+
 - Step indicator (Step 1 of 2: Personal Info → Business Info)
 - Client-side validation with inline error messages
 - Submit button disabled while loading, shows spinner
@@ -1258,6 +1335,7 @@ UX requirements:
 - On error → show Alert component with server error message
 
 useRegistration.ts hook:
+
 - POST to /api/register
 - Handle loading, error, success states
 - Store TIN result in component state (not global store — one-time use)
@@ -1272,6 +1350,7 @@ useRegistration.ts hook:
 ```
 
 Layout:
+
 - Green checkmark icon
 - "Registration Successful!" heading
 - TIN display box (prominent, bordered, cu-red text, large font): "GH-TIN-3A7F2C"
@@ -1281,6 +1360,7 @@ Layout:
 - If user navigates here without TIN (direct URL) → redirect to /register
 
 TinDisplay.tsx:
+
 - Accepts `tin` prop
 - Prominent display with copy-to-clipboard button
 - Print-friendly styling
@@ -1294,6 +1374,7 @@ TinDisplay.tsx:
 ```
 
 Layout:
+
 - Simple form: phone number input + "Find My TIN" button
 - On success: show TIN result card (TIN number, masked name, status badge)
 - On not found: show Alert "No registration found for this number"
@@ -1308,6 +1389,7 @@ Layout:
 ```
 
 Layout:
+
 - FAQ accordion (5 questions):
   - "What is a TIN?"
   - "How do I register online?"
@@ -1337,6 +1419,7 @@ Layout:
 ```
 
 Layout (mimic CU portal login):
+
 - Centered card on cu-bg background
 - Top: cu-red header strip with "DISTRICT ASSEMBLY – REVENUE UNIT" + emblem placeholder
 - Form: Email + Password fields
@@ -1345,6 +1428,7 @@ Layout (mimic CU portal login):
 - No "register" link (admin accounts created by SYS_ADMIN)
 
 Auth flow:
+
 - POST /api/auth/login
 - Store `{access, refresh, role, admin_id}` in authStore (Zustand)
 - Redirect to /admin/dashboard on success
@@ -1363,19 +1447,23 @@ Auth flow:
 Layout sections:
 
 **KPI Row (4 StatsCards):**
+
 - Total Traders | Today's Registrations | Web Registrations | USSD Registrations
 
 **Charts Row:**
+
 - Left: BarChart — registrations by business type
 - Right: DonutChart — web vs USSD split
 
 **Bottom Row:**
+
 - LineChart — daily registrations last 30 days
 - Table — top 5 districts by registration count
 
 **Period filter:** buttons "7 Days | 30 Days | All Time" (updates all charts)
 
 StatsCard.tsx:
+
 - Icon + label + large number + trend indicator (+12% vs last week)
 - White card, cu-red icon accent
 
@@ -1391,6 +1479,7 @@ StatsCard.tsx:
 ```
 
 FilterBar component filters:
+
 - Search (name / phone / TIN)
 - Channel (All / Web / USSD)
 - Business Type (dropdown)
@@ -1398,6 +1487,7 @@ FilterBar component filters:
 - Date From / Date To
 
 TraderTable:
+
 - Columns: TIN | Name | Phone | Business Type | Region | Channel | Registered At | Actions
 - Channel column: Badge (web=blue, ussd=purple)
 - Pagination: 20 per page, page controls at bottom
@@ -1405,6 +1495,7 @@ TraderTable:
 - Loading skeleton while fetching
 
 useTraders.ts hook:
+
 - GET /api/traders with all filter params
 - Debounce search input (300ms)
 - Reset page on filter change
@@ -1418,6 +1509,7 @@ useTraders.ts hook:
 ```
 
 Sections:
+
 - Breadcrumb: Traders > {name}
 - Profile card: TIN (prominent), Name, Phone, Status badge
 - Business info card: Business Type, Location details
@@ -1434,6 +1526,7 @@ Sections:
 ```
 
 Sections:
+
 - Filter bar: Period, Region, Channel, Business Type, Date Range
 - Summary table (government style): clear headings, totals row
   - Total registrations | By channel | By top regions | By business type
@@ -1460,7 +1553,6 @@ Sections:
 
 ---
 
-
 ## PHASE 11 — Integration & End-to-End Wiring
 
 **Agent Instructions:** Read LOG.md first. Verify ALL previous phases complete. Wire frontend to backend, fix any integration issues, and verify all acceptance criteria are met.
@@ -1470,6 +1562,7 @@ Sections:
 ### 11.1 — API Client & Auth Wiring
 
 **Files to Implement/Update:**
+
 ```
 /ghana-tax-system/frontend/src/lib/api.ts         (implement fully)
 /ghana-tax-system/frontend/src/lib/auth.ts        (implement fully)
@@ -1477,6 +1570,7 @@ Sections:
 ```
 
 **api.ts — Axios instance with:**
+
 - Base URL from env var `VITE_API_BASE_URL`
 - Request interceptor: attach `Authorization: Bearer {access_token}` from authStore
 - Response interceptor:
@@ -1486,15 +1580,16 @@ Sections:
 - Error normalization: extract error message from response body
 
 **authStore.ts — Zustand store:**
+
 ```typescript
 interface AuthState {
-  accessToken: string | null
-  refreshToken: string | null
-  role: "SYS_ADMIN" | "TAX_ADMIN" | null
-  adminId: string | null
-  setAuth: (tokens, role, adminId) => void
-  clearAuth: () => void
-  isAuthenticated: () => boolean
+  accessToken: string | null;
+  refreshToken: string | null;
+  role: "SYS_ADMIN" | "TAX_ADMIN" | null;
+  adminId: string | null;
+  setAuth: (tokens, role, adminId) => void;
+  clearAuth: () => void;
+  isAuthenticated: () => boolean;
 }
 // Persist to sessionStorage (NOT localStorage)
 ```
@@ -1502,12 +1597,14 @@ interface AuthState {
 ### 11.2 — CORS & Environment Configuration
 
 **Verify/Fix:**
+
 - Backend CORS allows frontend origin (from `CORS_ALLOWED_ORIGINS` env)
 - Frontend `VITE_API_BASE_URL` points to backend
 - Docker Compose networking allows service-to-service communication
 - USSD callback URL accessible for webhook testing
 
 **Files to Update:**
+
 ```
 /ghana-tax-system/infra/docker-compose.yml        ← verify networking
 /ghana-tax-system/frontend/.env.example           ← VITE_API_BASE_URL
@@ -1517,12 +1614,14 @@ interface AuthState {
 ### 11.3 — README & Documentation
 
 **Files to Create/Implement:**
+
 ```
 /ghana-tax-system/README.md
 /ghana-tax-system/api-tests/ghana-tax-system.http  ← .http test file
 ```
 
 **README.md must include:**
+
 1. Architecture diagram (ASCII)
 2. Prerequisites list
 3. Quick start with Docker Compose
@@ -1535,6 +1634,7 @@ interface AuthState {
 10. Running tests instructions
 
 **ASCII Architecture Diagram:**
+
 ```
 ┌─────────────────────────────────────────────────────────────┐
 │                    CLIENT LAYER                              │
@@ -1562,6 +1662,7 @@ interface AuthState {
 ```
 
 **USSD curl simulation examples:**
+
 ```bash
 # Initial menu
 curl -X POST http://localhost:8000/ussd/callback \
@@ -1614,6 +1715,7 @@ Agent must verify and document results for each:
 **Depends On:** Phase 11
 
 ### Security Checks:
+
 - Verify rate limiting active on all specified endpoints
 - Verify input sanitization on all form fields
 - Verify CORS headers correct in production mode
@@ -1622,11 +1724,13 @@ Agent must verify and document results for each:
 - Audit log all edge cases: failed TIN generation, duplicate phone
 
 ### Performance Checks:
+
 - Run reports summary against 10k records — must be ≤3s
 - Verify MongoDB indexes exist (run mongo-init script)
 - Add caching for /api/reports/summary (30-60s TTL using Redis)
 
 ### Files to Update (as needed):
+
 ```
 /ghana-tax-system/backend/apps/reports/services.py   ← add Redis cache
 /ghana-tax-system/backend/core/settings.py           ← cache config
@@ -1655,23 +1759,25 @@ Agent must verify and document results for each:
 ## QUICK REFERENCE: ALL PAGES
 
 ### Trader Portal (Public)
-| Route | Page File | Description |
-|-------|-----------|-------------|
-| `/` | `LandingPage.tsx` | Government portal home with CTAs |
-| `/register` | `RegisterPage.tsx` | Multi-step business registration form |
-| `/register/success` | `RegistrationSuccessPage.tsx` | TIN display + confirmation |
-| `/check-tin` | `CheckTinPage.tsx` | Phone number → TIN lookup |
-| `/help` | `HelpPage.tsx` | FAQ + USSD guide |
+
+| Route               | Page File                     | Description                           |
+| ------------------- | ----------------------------- | ------------------------------------- |
+| `/`                 | `LandingPage.tsx`             | Government portal home with CTAs      |
+| `/register`         | `RegisterPage.tsx`            | Multi-step business registration form |
+| `/register/success` | `RegistrationSuccessPage.tsx` | TIN display + confirmation            |
+| `/check-tin`        | `CheckTinPage.tsx`            | Phone number → TIN lookup             |
+| `/help`             | `HelpPage.tsx`                | FAQ + USSD guide                      |
 
 ### Admin Portal (Protected)
-| Route | Page File | Access | Description |
-|-------|-----------|--------|-------------|
-| `/admin/login` | `LoginPage.tsx` | Public | CU-style portal login |
-| `/admin/dashboard` | `DashboardPage.tsx` | TAX_ADMIN+ | KPIs + charts |
-| `/admin/traders` | `TradersPage.tsx` | TAX_ADMIN+ | Filterable trader table |
-| `/admin/traders/:id` | `TraderDetailPage.tsx` | TAX_ADMIN+ | Full trader profile |
-| `/admin/reports` | `ReportsPage.tsx` | TAX_ADMIN+ | Summary + CSV export |
-| `/admin/audit-logs` | `AuditLogsPage.tsx` | SYS_ADMIN only | Audit trail |
+
+| Route                | Page File              | Access         | Description             |
+| -------------------- | ---------------------- | -------------- | ----------------------- |
+| `/admin/login`       | `LoginPage.tsx`        | Public         | CU-style portal login   |
+| `/admin/dashboard`   | `DashboardPage.tsx`    | TAX_ADMIN+     | KPIs + charts           |
+| `/admin/traders`     | `TradersPage.tsx`      | TAX_ADMIN+     | Filterable trader table |
+| `/admin/traders/:id` | `TraderDetailPage.tsx` | TAX_ADMIN+     | Full trader profile     |
+| `/admin/reports`     | `ReportsPage.tsx`      | TAX_ADMIN+     | Summary + CSV export    |
+| `/admin/audit-logs`  | `AuditLogsPage.tsx`    | SYS_ADMIN only | Audit trail             |
 
 ### Total: 11 Pages
 
@@ -1679,24 +1785,24 @@ Agent must verify and document results for each:
 
 ## QUICK REFERENCE: ALL API ENDPOINTS
 
-| Method | Endpoint | Auth | Description |
-|--------|----------|------|-------------|
-| POST | `/api/auth/login` | None | Admin login |
-| POST | `/api/auth/refresh` | None | Refresh access token |
-| GET | `/api/me` | Any Admin | Current admin info |
-| POST | `/api/register` | None | Web trader registration |
-| POST | `/api/tin/lookup` | None | TIN lookup by phone |
-| POST | `/ussd/callback` | None (webhook) | USSD session handler |
-| GET | `/api/traders` | TAX_ADMIN+ | List traders (filtered) |
-| GET | `/api/traders/:id` | TAX_ADMIN+ | Trader detail |
-| GET | `/api/reports/summary` | TAX_ADMIN+ | Aggregated KPIs |
-| GET | `/api/reports/export` | TAX_ADMIN+ | CSV download |
-| GET | `/api/audit-logs` | SYS_ADMIN | Audit log entries |
-| POST | `/api/admin/users` | SYS_ADMIN | Create admin |
-| PATCH | `/api/admin/users/:id` | SYS_ADMIN | Update admin role/status |
-| GET | `/api/admin/users` | SYS_ADMIN | List admins |
+| Method | Endpoint               | Auth           | Description              |
+| ------ | ---------------------- | -------------- | ------------------------ |
+| POST   | `/api/auth/login`      | None           | Admin login              |
+| POST   | `/api/auth/refresh`    | None           | Refresh access token     |
+| GET    | `/api/me`              | Any Admin      | Current admin info       |
+| POST   | `/api/register`        | None           | Web trader registration  |
+| POST   | `/api/tin/lookup`      | None           | TIN lookup by phone      |
+| POST   | `/ussd/callback`       | None (webhook) | USSD session handler     |
+| GET    | `/api/traders`         | TAX_ADMIN+     | List traders (filtered)  |
+| GET    | `/api/traders/:id`     | TAX_ADMIN+     | Trader detail            |
+| GET    | `/api/reports/summary` | TAX_ADMIN+     | Aggregated KPIs          |
+| GET    | `/api/reports/export`  | TAX_ADMIN+     | CSV download             |
+| GET    | `/api/audit-logs`      | SYS_ADMIN      | Audit log entries        |
+| POST   | `/api/admin/users`     | SYS_ADMIN      | Create admin             |
+| PATCH  | `/api/admin/users/:id` | SYS_ADMIN      | Update admin role/status |
+| GET    | `/api/admin/users`     | SYS_ADMIN      | List admins              |
 
 ---
 
-*End of Phase Plan — ghana-tax-system*
-*Version: 1.0 | Created: 2026-03-05*
+_End of Phase Plan — ghana-tax-system_
+_Version: 1.0 | Created: 2026-03-05_

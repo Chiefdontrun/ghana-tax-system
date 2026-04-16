@@ -48,3 +48,5 @@ frontend/.env
 # MongoDB data
 data/
 mongo-data/
+
+frontend/node_modules
