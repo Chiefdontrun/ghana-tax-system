@@ -27,8 +27,8 @@ USSD_SESSIONS = "ussd_sessions"
 _client: Optional[MongoClient] = None
 _db: Optional[Database] = None
 
-_MAX_RETRIES = 5
-_RETRY_DELAY_S = 2
+_MAX_RETRIES = 1
+_RETRY_DELAY_S = 0
 
 
 def get_client() -> MongoClient:
@@ -49,9 +49,9 @@ def get_client() -> MongoClient:
         try:
             client = MongoClient(
                 uri,
-                serverSelectionTimeoutMS=5000,
-                connectTimeoutMS=5000,
-                socketTimeoutMS=10000,
+                serverSelectionTimeoutMS=3000,
+                connectTimeoutMS=3000,
+                socketTimeoutMS=5000,
             )
             # Trigger an actual network round-trip to verify connectivity
             client.admin.command("ping")
@@ -67,7 +67,7 @@ def get_client() -> MongoClient:
                 exc,
                 _RETRY_DELAY_S,
             )
-            if attempt < _MAX_RETRIES:
+            if attempt < _MAX_RETRIES and _RETRY_DELAY_S:
                 time.sleep(_RETRY_DELAY_S)
 
     raise RuntimeError(
