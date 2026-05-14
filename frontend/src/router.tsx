@@ -37,6 +37,8 @@ const router = createBrowserRouter([
       { path: "/help", element: <HelpPage /> },
     ],
   },
+  // ── Admin entrypoint ───────────────────────────────────────────────────────
+  { path: "/admin", element: <Navigate to="/admin/dashboard" replace /> },
   // ── Admin login (no layout wrapper) ────────────────────────────────────────
   { path: "/admin/login", element: <LoginPage /> },
   // ── Protected admin routes ──────────────────────────────────────────────────
