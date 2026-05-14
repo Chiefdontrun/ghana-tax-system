@@ -4,6 +4,7 @@ All secrets and environment-specific values are loaded via python-decouple.
 MongoDB is used directly via PyMongo — Django ORM is NOT used for primary data.
 """
 
+import os
 from pathlib import Path
 from decouple import config, Csv
 
@@ -12,7 +13,9 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # ─── Security ─────────────────────────────────────────────────────────────────
 SECRET_KEY = config("DJANGO_SECRET_KEY", default="unsafe-dev-secret-key-change-in-prod")
 DEBUG = config("DJANGO_DEBUG", default=False, cast=bool)
-ALLOWED_HOSTS = config("ALLOWED_HOSTS", default="localhost,127.0.0.1", cast=Csv())
+ALLOWED_HOSTS = config("ALLOWED_HOSTS", default="localhost,127.0.0.1,.vercel.app", cast=Csv())
+if os.environ.get("VERCEL_URL"):
+    ALLOWED_HOSTS.append(os.environ["VERCEL_URL"])
 
 # ─── Application definition ───────────────────────────────────────────────────
 INSTALLED_APPS = [
@@ -117,6 +120,11 @@ REST_FRAMEWORK = {
 CORS_ALLOWED_ORIGINS = config(
     "CORS_ALLOWED_ORIGINS",
     default="http://localhost:5173,http://localhost:3000",
+    cast=Csv(),
+)
+CORS_ALLOWED_ORIGIN_REGEXES = config(
+    "CORS_ALLOWED_ORIGIN_REGEXES",
+    default=r"^https://.*\.vercel\.app$",
     cast=Csv(),
 )
 CORS_ALLOW_CREDENTIALS = True
