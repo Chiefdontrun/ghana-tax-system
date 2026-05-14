@@ -1,4 +1,5 @@
 # Digital Taxation & Revenue Tracking System
+
 ## Ghana District Assembly — Revenue Unit
 
 A multi-channel tax registration and monitoring platform for small-scale enterprises. Traders register via **web form** or **USSD** (no smartphone required), receive a unique Tax Identification Number (TIN), and are tracked on a government-style administrative dashboard.
@@ -37,15 +38,15 @@ A multi-channel tax registration and monitoring platform for small-scale enterpr
 
 ## Tech Stack
 
-| Layer | Technology |
-|-------|-----------|
-| Frontend | React 18 + TypeScript + Vite + TailwindCSS |
-| Backend | Python 3.10 + Django REST Framework |
-| Database | MongoDB 7 (PyMongo) |
-| Cache / Sessions | Redis 7 |
-| Auth | JWT (PyJWT + bcrypt) |
-| USSD Gateway | Africa's Talking |
-| Container | Docker + Docker Compose |
+| Layer            | Technology                                 |
+| ---------------- | ------------------------------------------ |
+| Frontend         | React 18 + TypeScript + Vite + TailwindCSS |
+| Backend          | Python 3.10 + Django REST Framework        |
+| Database         | MongoDB 7 (PyMongo)                        |
+| Cache / Sessions | Redis 7                                    |
+| Auth             | JWT (PyJWT + bcrypt)                       |
+| USSD Gateway     | Africa's Talking                           |
+| Container        | Docker + Docker Compose                    |
 
 ---
 
@@ -131,11 +132,11 @@ Seeds: 3 admin accounts, 10 locations, 100 traders, 200+ audit logs.
 
 ## Default Demo Accounts
 
-| Role | Email | Password |
-|------|-------|----------|
-| System Administrator | sysadmin@demo.gov.gh | DemoPass123! |
-| Tax Administrator | taxadmin1@demo.gov.gh | DemoPass123! |
-| Tax Administrator | taxadmin2@demo.gov.gh | DemoPass123! |
+| Role                 | Email                 | Password     |
+| -------------------- | --------------------- | ------------ |
+| System Administrator | sysadmin@demo.gov.gh  | DemoPass123! |
+| Tax Administrator    | taxadmin1@demo.gov.gh | DemoPass123! |
+| Tax Administrator    | taxadmin2@demo.gov.gh | DemoPass123! |
 
 ---
 
@@ -143,15 +144,15 @@ Seeds: 3 admin accounts, 10 locations, 100 traders, 200+ audit logs.
 
 See `infra/.env.example` for the full list. Key variables:
 
-| Variable | Description |
-|----------|-------------|
-| `MONGO_URI` | MongoDB connection string |
-| `REDIS_URL` | Redis connection string |
-| `JWT_SECRET_KEY` | Secret for signing JWT tokens |
-| `DJANGO_SECRET_KEY` | Django secret key |
-| `AT_API_KEY` | Africa's Talking API key (USSD/SMS) |
-| `AT_USERNAME` | Africa's Talking username |
-| `SEED_ADMIN_EMAIL` | Email for seeded SYS_ADMIN account |
+| Variable              | Description                           |
+| --------------------- | ------------------------------------- |
+| `MONGO_URI`           | MongoDB connection string             |
+| `REDIS_URL`           | Redis connection string               |
+| `JWT_SECRET_KEY`      | Secret for signing JWT tokens         |
+| `DJANGO_SECRET_KEY`   | Django secret key                     |
+| `AT_API_KEY`          | Africa's Talking API key (USSD/SMS)   |
+| `AT_USERNAME`         | Africa's Talking username             |
+| `SEED_ADMIN_EMAIL`    | Email for seeded SYS_ADMIN account    |
 | `SEED_ADMIN_PASSWORD` | Password for seeded SYS_ADMIN account |
 
 ---
@@ -192,22 +193,22 @@ curl -X POST http://localhost:8000/ussd/callback \
 
 ## API Endpoints
 
-| Method | Endpoint | Auth | Description |
-|--------|----------|------|-------------|
-| POST | `/api/auth/login` | None | Admin login → JWT tokens |
-| POST | `/api/auth/refresh` | None | Refresh access token |
-| GET | `/api/me` | Any Admin | Current admin info |
-| POST | `/api/register` | None | Web trader registration |
-| POST | `/api/tin/lookup` | None | TIN lookup by phone |
-| POST | `/ussd/callback` | None | USSD webhook handler |
-| GET | `/api/traders` | TAX_ADMIN+ | List traders (filtered, paginated) |
-| GET | `/api/traders/:id` | TAX_ADMIN+ | Trader detail |
-| GET | `/api/reports/summary` | TAX_ADMIN+ | KPI aggregates |
-| GET | `/api/reports/export` | TAX_ADMIN+ | CSV export |
-| GET | `/api/audit-logs` | SYS_ADMIN | Audit log entries |
-| POST | `/api/admin/users` | SYS_ADMIN | Create admin account |
-| PATCH | `/api/admin/users/:id` | SYS_ADMIN | Update admin role/status |
-| GET | `/api/admin/users` | SYS_ADMIN | List all admins |
+| Method | Endpoint               | Auth       | Description                        |
+| ------ | ---------------------- | ---------- | ---------------------------------- |
+| POST   | `/api/auth/login`      | None       | Admin login → JWT tokens           |
+| POST   | `/api/auth/refresh`    | None       | Refresh access token               |
+| GET    | `/api/me`              | Any Admin  | Current admin info                 |
+| POST   | `/api/register`        | None       | Web trader registration            |
+| POST   | `/api/tin/lookup`      | None       | TIN lookup by phone                |
+| POST   | `/ussd/callback`       | None       | USSD webhook handler               |
+| GET    | `/api/traders`         | TAX_ADMIN+ | List traders (filtered, paginated) |
+| GET    | `/api/traders/:id`     | TAX_ADMIN+ | Trader detail                      |
+| GET    | `/api/reports/summary` | TAX_ADMIN+ | KPI aggregates                     |
+| GET    | `/api/reports/export`  | TAX_ADMIN+ | CSV export                         |
+| GET    | `/api/audit-logs`      | SYS_ADMIN  | Audit log entries                  |
+| POST   | `/api/admin/users`     | SYS_ADMIN  | Create admin account               |
+| PATCH  | `/api/admin/users/:id` | SYS_ADMIN  | Update admin role/status           |
+| GET    | `/api/admin/users`     | SYS_ADMIN  | List all admins                    |
 
 ---
 
@@ -231,20 +232,20 @@ pytest --cov=apps --cov-report=html
 
 See `PHASES.md` for the full build plan and `LOG.md` for completed work.
 
-| Phase | Status |
-|-------|--------|
-| 1 — Project Scaffold & Infra | ✅ Complete |
+| Phase                         | Status      |
+| ----------------------------- | ----------- |
+| 1 — Project Scaffold & Infra  | ✅ Complete |
 | 2 — MongoDB Data Layer & Seed | ✅ Complete |
-| 3 — Auth Module | ✅ Complete |
-| 4 — Registration + TIN | ✅ Complete |
-| 5 — USSD Gateway | ✅ Complete |
-| 6 — Reports + Audit APIs | ✅ Complete |
-| 7 — Notifications + Tests | ✅ Complete |
-| 8 — Frontend Design System | ✅ Complete |
-| 9 — Trader Portal (5 pages) | ✅ Complete |
-| 10 — Admin Portal (6 pages) | ✅ Complete |
-| 11 — Integration & Wiring | ✅ Complete |
-| 12 — Security + Performance | ✅ Complete |
+| 3 — Auth Module               | ✅ Complete |
+| 4 — Registration + TIN        | ✅ Complete |
+| 5 — USSD Gateway              | ✅ Complete |
+| 6 — Reports + Audit APIs      | ✅ Complete |
+| 7 — Notifications + Tests     | ✅ Complete |
+| 8 — Frontend Design System    | ✅ Complete |
+| 9 — Trader Portal (5 pages)   | ✅ Complete |
+| 10 — Admin Portal (6 pages)   | ✅ Complete |
+| 11 — Integration & Wiring     | ✅ Complete |
+| 12 — Security + Performance   | ✅ Complete |
 
 ---
 
