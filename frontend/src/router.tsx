@@ -14,6 +14,7 @@ import HelpPage from "@/features/trader/pages/HelpPage";
 
 // ── Admin pages (Phase 10) ────────────────────────────────────────────────────
 import LoginPage from "@/features/admin/pages/LoginPage";
+import VerifyOtpPage from "@/features/admin/pages/VerifyOtpPage";
 import DashboardPage from "@/features/admin/pages/DashboardPage";
 import TradersPage from "@/features/admin/pages/TradersPage";
 import TraderDetailPage from "@/features/admin/pages/TraderDetailPage";
@@ -41,6 +42,7 @@ const router = createBrowserRouter([
   { path: "/admin", element: <Navigate to="/admin/dashboard" replace /> },
   // ── Admin login (no layout wrapper) ────────────────────────────────────────
   { path: "/admin/login", element: <LoginPage /> },
+  { path: "/admin/verify-otp", element: <VerifyOtpPage /> },
   // ── Protected admin routes ──────────────────────────────────────────────────
   {
     element: (
@@ -70,3 +72,5 @@ const router = createBrowserRouter([
 export default function AppRouter() {
   return <RouterProvider router={router} />;
 }
+
+

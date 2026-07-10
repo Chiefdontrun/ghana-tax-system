@@ -14,6 +14,10 @@ class RefreshSerializer(serializers.Serializer):
     refresh = serializers.CharField(min_length=1)
 
 
+class VerifyOtpSerializer(serializers.Serializer):
+    code = serializers.RegexField(regex=r"^\d{6}$", max_length=6, min_length=6)
+
+
 class CreateAdminSerializer(serializers.Serializer):
     email = serializers.EmailField()
     name = serializers.CharField(min_length=2, max_length=120)

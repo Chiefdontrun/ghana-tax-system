@@ -90,7 +90,7 @@ api.interceptors.response.use(
         const { data } = await axios.post(`${BASE_URL}/api/auth/refresh/`, {
           refresh: refreshToken,
         });
-        const newAccessToken: string = data.access;
+        const newAccessToken: string = data.data?.access ?? data.access;
         setAccessToken(newAccessToken);
         drainQueue(newAccessToken);
         originalRequest.headers.set("Authorization", `Bearer ${newAccessToken}`);
@@ -112,8 +112,9 @@ api.interceptors.response.use(
       (error.response?.data as Record<string, string>)?.detail ||
       error.message ||
       "An unexpected error occurred";
-    return Promise.reject(new Error(message));
+    return Promise.reject(Object.assign(new Error(message), { response: error.response }));
   }
 );
 
 export default api;
+

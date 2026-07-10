@@ -17,6 +17,7 @@ logger = logging.getLogger(__name__)
 # ── Token type constants ───────────────────────────────────────────────────────
 TOKEN_TYPE_ACCESS = "access"
 TOKEN_TYPE_REFRESH = "refresh"
+TOKEN_TYPE_OTP_PENDING = "otp_pending"
 
 # ── Custom exceptions ─────────────────────────────────────────────────────────
 
@@ -59,6 +60,23 @@ def generate_refresh_token(admin_id: str) -> str:
     payload = {
         "sub": admin_id,
         "type": TOKEN_TYPE_REFRESH,
+        "iat": int(now.timestamp()),
+        "exp": int(expire.timestamp()),
+    }
+    return jwt.encode(payload, settings.JWT_SECRET_KEY, algorithm="HS256")
+
+
+def generate_otp_pending_token(admin_id: str, otp_id: str) -> str:
+    """
+    Generate a short-lived token that can only be used to finish OTP verification.
+    """
+    now = datetime.now(timezone.utc)
+    expire = now + timedelta(minutes=10)
+    payload = {
+        "sub": admin_id,
+        "otp_id": otp_id,
+        "scope": TOKEN_TYPE_OTP_PENDING,
+        "type": TOKEN_TYPE_OTP_PENDING,
         "iat": int(now.timestamp()),
         "exp": int(expire.timestamp()),
     }

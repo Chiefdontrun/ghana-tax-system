@@ -1,3 +1,4 @@
+import { useLocation } from "react-router-dom";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -13,6 +14,8 @@ type FormValues = z.infer<typeof schema>;
 
 export default function LoginPage() {
   const { login, isLoading, error } = useAdminAuth();
+  const location = useLocation();
+  const stateMessage = (location.state as { message?: string } | null)?.message;
 
   const {
     register,
@@ -49,6 +52,12 @@ export default function LoginPage() {
           {/* Form */}
           <div className="px-6 py-7">
             <h1 className="text-lg font-bold text-cu-text mb-6 text-center">Sign In</h1>
+
+            {stateMessage && (
+              <Alert variant="info" className="mb-5">
+                {stateMessage}
+              </Alert>
+            )}
 
             {error && (
               <Alert variant="error" className="mb-5">
@@ -101,3 +110,5 @@ export default function LoginPage() {
     </div>
   );
 }
+
+

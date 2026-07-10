@@ -22,6 +22,7 @@ LOCATIONS = "locations"
 ADMINS = "admins"
 AUDIT_LOGS = "audit_logs"
 USSD_SESSIONS = "ussd_sessions"
+OTP_VERIFICATIONS = "otp_verifications"
 
 # ── Singleton holders ─────────────────────────────────────────────────────────
 _client: Optional[MongoClient] = None

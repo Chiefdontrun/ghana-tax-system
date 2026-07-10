@@ -8,13 +8,17 @@ from django_ratelimit.decorators import ratelimit
 from django.utils.decorators import method_decorator
 from rest_framework.views import APIView
 from rest_framework.permissions import AllowAny
+from rest_framework.exceptions import AuthenticationFailed, ValidationError
 
 from apps.auth_app.serializers import (
     LoginSerializer,
     RefreshSerializer,
+    VerifyOtpSerializer,
     CreateAdminSerializer,
     UpdateAdminSerializer,
 )
+from apps.auth_app.jwt_utils import get_token_from_request
+from apps.auth_app.email_service import EmailDeliveryError
 from apps.auth_app.services import AuthService
 from apps.auth_app.permissions import IsAdminAuthenticated, IsSysAdmin
 from core.utils.response import success_response, error_response, created_response
@@ -42,7 +46,70 @@ class LoginView(APIView):
                 ip_address=getattr(request, "client_ip", "unknown"),
                 user_agent=getattr(request, "user_agent", ""),
             )
+            return success_response(data=result, message="Verification code sent.")
+        except EmailDeliveryError as exc:
+            return error_response(str(exc), http_status=503)
+        except Exception as exc:
+            return error_response(str(exc), http_status=401)
+
+
+# ── POST /api/auth/verify-otp ─────────────────────────────────────────────────
+
+@method_decorator(ratelimit(key="ip", rate="10/m", method="POST", block=True), name="post")
+class VerifyOtpView(APIView):
+    permission_classes = [AllowAny]
+    authentication_classes = []
+
+    def post(self, request):
+        token = get_token_from_request(request)
+        if not token:
+            return error_response("Pending verification token required.", http_status=401)
+
+        serializer = VerifyOtpSerializer(data=request.data)
+        if not serializer.is_valid():
+            return error_response("Validation error.", errors=serializer.errors, http_status=400)
+
+        try:
+            result = _auth_service.verify_otp(
+                pending_token=token,
+                code=serializer.validated_data["code"],
+                ip_address=getattr(request, "client_ip", "unknown"),
+                user_agent=getattr(request, "user_agent", ""),
+            )
             return success_response(data=result, message="Login successful.")
+        except ValidationError as exc:
+            return error_response("Invalid verification code.", errors=exc.detail, http_status=400)
+        except AuthenticationFailed as exc:
+            return error_response(str(exc), http_status=401)
+        except Exception as exc:
+            return error_response(str(exc), http_status=401)
+
+
+# ── POST /api/auth/resend-otp ─────────────────────────────────────────────────
+
+@method_decorator(ratelimit(key="ip", rate="5/m", method="POST", block=True), name="post")
+class ResendOtpView(APIView):
+    permission_classes = [AllowAny]
+    authentication_classes = []
+
+    def post(self, request):
+        token = get_token_from_request(request)
+        if not token:
+            return error_response("Pending verification token required.", http_status=401)
+
+        try:
+            result = _auth_service.resend_otp(
+                pending_token=token,
+                ip_address=getattr(request, "client_ip", "unknown"),
+                user_agent=getattr(request, "user_agent", ""),
+            )
+            return success_response(data=result, message="Verification code resent.")
+        except ValidationError as exc:
+            return error_response("Could not resend verification code.", errors=exc.detail, http_status=429)
+        except EmailDeliveryError as exc:
+            return error_response(str(exc), http_status=503)
+        except AuthenticationFailed as exc:
+            return error_response(str(exc), http_status=401)
         except Exception as exc:
             return error_response(str(exc), http_status=401)
 
@@ -136,3 +203,6 @@ class AdminUserDetailView(APIView):
         except Exception as exc:
             status = 403 if "own role" in str(exc) else 400
             return error_response(str(exc), http_status=status)
+
+
+
