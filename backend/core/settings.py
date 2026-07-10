@@ -5,6 +5,7 @@ MongoDB is used directly via PyMongo — Django ORM is NOT used for primary data
 """
 
 import os
+import warnings
 from pathlib import Path
 from decouple import config, Csv
 
@@ -65,10 +66,28 @@ REDIS_URL = config("REDIS_URL", default="redis://localhost:6379/0")
 
 # ─── Cache (Redis) ────────────────────────────────────────────────────────────
 # Used by reports summary endpoint for 30-60s TTL caching.
-# Falls back gracefully: if Redis is unavailable Django will raise on startup;
-# to use in-memory cache for local dev without Redis, set USE_REDIS_CACHE=False.
+# Falls back gracefully: if Redis is unavailable or unreachable.
 _USE_REDIS_CACHE = config("USE_REDIS_CACHE", default=True, cast=bool)
+_REDIRECT_TO_LOCAL_CACHE = False
 if _USE_REDIS_CACHE:
+    try:
+        import redis as _redis
+
+        _redis.Redis.from_url(
+            REDIS_URL,
+            socket_connect_timeout=2,
+            socket_timeout=2,
+        ).ping()
+    except Exception as exc:
+        _REDIRECT_TO_LOCAL_CACHE = True
+        # When Redis is unavailable, fallback to local in-memory cache so
+        # rate limiting and reports still work without crashing the login flow.
+        warnings.warn(
+            f"Redis cache unreachable at {REDIS_URL}. Falling back to LocMemCache. Error: {exc}",
+            RuntimeWarning,
+        )
+
+if _USE_REDIS_CACHE and not _REDIRECT_TO_LOCAL_CACHE:
     CACHES = {
         "default": {
             "BACKEND": "django.core.cache.backends.redis.RedisCache",
