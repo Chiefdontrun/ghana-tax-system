@@ -18,6 +18,11 @@ function SummaryRow({ label, value, bold }: { label: string; value: string | num
   );
 }
 
+function formatCount(value: number | string | null | undefined) {
+  const amount = Number(value ?? 0);
+  return Number.isFinite(amount) ? amount.toLocaleString() : "0";
+}
+
 export default function ReportSummary({ data, isLoading }: ReportSummaryProps) {
   if (isLoading) {
     return (
@@ -29,10 +34,15 @@ export default function ReportSummary({ data, isLoading }: ReportSummaryProps) {
 
   if (!data) return null;
 
-  const webPct = data.total_traders > 0
-    ? Math.round((data.by_channel.web / data.total_traders) * 100)
+  const totalTraders = Number(data.total_traders ?? 0);
+  const webCount = Number(data.by_channel?.web ?? 0);
+  const ussdCount = Number(data.by_channel?.ussd ?? 0);
+  const webPct = totalTraders > 0
+    ? Math.round((webCount / totalTraders) * 100)
     : 0;
-  const ussdPct = 100 - webPct;
+  const ussdPct = totalTraders > 0
+    ? Math.round((ussdCount / totalTraders) * 100)
+    : 0;
 
   return (
     <div className="space-y-6">
@@ -43,9 +53,9 @@ export default function ReportSummary({ data, isLoading }: ReportSummaryProps) {
         </div>
         <table className="min-w-full">
           <tbody>
-            <SummaryRow label="Total Registered Traders" value={data.total_traders} bold />
-            <SummaryRow label="Web Registrations" value={`${data.by_channel.web.toLocaleString()} (${webPct}%)`} />
-            <SummaryRow label="USSD Registrations" value={`${data.by_channel.ussd.toLocaleString()} (${ussdPct}%)`} />
+            <SummaryRow label="Total Registered Traders" value={totalTraders} bold />
+            <SummaryRow label="Web Registrations" value={`${formatCount(webCount)} (${webPct}%)`} />
+            <SummaryRow label="USSD Registrations" value={`${formatCount(ussdCount)} (${ussdPct}%)`} />
           </tbody>
         </table>
       </div>
@@ -68,10 +78,10 @@ export default function ReportSummary({ data, isLoading }: ReportSummaryProps) {
               {data.by_region.map((r) => (
                 <tr key={r.region} className="border-b border-cu-border hover:bg-gray-50">
                   <td className="px-4 py-2.5 text-sm text-cu-text">{r.region}</td>
-                  <td className="px-4 py-2.5 text-sm text-right tabular-nums">{r.count.toLocaleString()}</td>
+                  <td className="px-4 py-2.5 text-sm text-right tabular-nums">{formatCount(r.count)}</td>
                   <td className="px-4 py-2.5 text-sm text-right text-cu-muted">
-                    {data.total_traders > 0
-                      ? `${Math.round((r.count / data.total_traders) * 100)}%`
+                    {totalTraders > 0
+                      ? `${Math.round((Number(r.count ?? 0) / totalTraders) * 100)}%`
                       : "—"}
                   </td>
                 </tr>
@@ -98,7 +108,7 @@ export default function ReportSummary({ data, isLoading }: ReportSummaryProps) {
               {data.by_business_type.map((b) => (
                 <tr key={b.type} className="border-b border-cu-border hover:bg-gray-50">
                   <td className="px-4 py-2.5 text-sm text-cu-text">{formatBusinessType(b.type)}</td>
-                  <td className="px-4 py-2.5 text-sm text-right tabular-nums">{b.count.toLocaleString()}</td>
+                  <td className="px-4 py-2.5 text-sm text-right tabular-nums">{formatCount(b.count)}</td>
                 </tr>
               ))}
             </tbody>
@@ -107,7 +117,7 @@ export default function ReportSummary({ data, isLoading }: ReportSummaryProps) {
       )}
 
       <p className="text-xs text-cu-muted text-right">
-        Generated: {new Date(data.generated_at).toLocaleString("en-GH")}
+        Generated: {data.generated_at ? new Date(data.generated_at).toLocaleString("en-GH") : "Not available"}
       </p>
     </div>
   );

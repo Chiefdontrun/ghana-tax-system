@@ -59,7 +59,8 @@ DATABASES = {
 
 # ─── MongoDB (primary data store) ─────────────────────────────────────────────
 MONGO_URI = config("MONGO_URI", default="mongodb://localhost:27017/ghana_tax_db")
-MONGO_DB_NAME = config("MONGO_DB_NAME", default="ghana_tax_db")
+_MONGO_DB_NAME = config("MONGO_DB_NAME", default="ghana_tax_db", cast=str).strip()
+MONGO_DB_NAME = _MONGO_DB_NAME.lstrip("/")
 
 # ─── Redis ────────────────────────────────────────────────────────────────────
 REDIS_URL = config("REDIS_URL", default="redis://localhost:6379/0")
@@ -96,13 +97,17 @@ if _USE_REDIS_CACHE and not _REDIRECT_TO_LOCAL_CACHE:
             "TIMEOUT": 60,  # Default TTL: 60 seconds
         }
     }
+    RATELIMIT_ENABLE = True
 else:
     CACHES = {
         "default": {
-            "BACKEND": "django.core.cache.backends.locmem.LocMemCache",
-            "LOCATION": "ghana-tax-local-cache",
+            "BACKEND": "django.core.cache.backends.redis.RedisCache",
+            "LOCATION": REDIS_URL,
+            "KEY_PREFIX": "ghana_tax",
+            "TIMEOUT": 60,
         }
     }
+    RATELIMIT_ENABLE = False
 
 # Reports summary cache TTL (seconds) — configurable via env (spec: 30-60s)
 REPORTS_CACHE_TTL = config("REPORTS_CACHE_TTL", default=45, cast=int)
