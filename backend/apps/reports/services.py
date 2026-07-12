@@ -108,7 +108,16 @@ class ReportsService:
 
         # ── Cache lookup ──────────────────────────────────────────────────────
         cache_key = f"reports_summary_{period}"
-        cached = cache.get(cache_key)
+        try:
+            cached = cache.get(cache_key)
+        except Exception as cache_err:
+            logger.warning(
+                "Reports cache read failed for %s: %s",
+                cache_key,
+                cache_err,
+            )
+            cached = None
+
         if cached is not None:
             logger.debug("Cache HIT for reports summary (period=%s)", period)
             # Update generated_at to reflect when the cache was served
