@@ -154,6 +154,11 @@ See `infra/.env.example` for the full list. Key variables:
 | `AT_USERNAME`         | Africa's Talking username             |
 | `SEED_ADMIN_EMAIL`    | Email for seeded SYS_ADMIN account    |
 | `SEED_ADMIN_PASSWORD` | Password for seeded SYS_ADMIN account |
+| `RESEND_API_KEY`      | Resend API key for admin OTP email    |
+| `DEFAULT_FROM_EMAIL`  | Sender address for Resend emails      |
+
+> On Vercel, add `RESEND_API_KEY` and `DEFAULT_FROM_EMAIL` under Project Settings → Environment Variables.
+> Use a verified sender domain in Resend, for example `Ghana Tax System <no-reply@yourdomain.com>`.
 
 ---
 

@@ -8,6 +8,7 @@ bcrypt==4.1.*
 python-decouple==3.8
 django-ratelimit==4.1.*
 django-cors-headers==4.3.*
+resend==2.32.2
 pytest==7.4.*
 pytest-django==4.7.*
 factory-boy==3.3.*

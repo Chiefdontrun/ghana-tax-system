@@ -127,7 +127,11 @@ EMAIL_PORT = config("EMAIL_PORT", default=587, cast=int)
 EMAIL_HOST_USER = config("EMAIL_HOST_USER", default="")
 EMAIL_HOST_PASSWORD = config("EMAIL_HOST_PASSWORD", default="")
 EMAIL_USE_TLS = config("EMAIL_USE_TLS", default=True, cast=bool)
-DEFAULT_FROM_EMAIL = config("DEFAULT_FROM_EMAIL", default="Ghana Tax System <no-reply@ghana-tax.local>")
+DEFAULT_FROM_EMAIL = config(
+    "DEFAULT_FROM_EMAIL",
+    default="Ghana Tax System <no-reply@yourdomain.com>",
+)
+RESEND_API_KEY = config("RESEND_API_KEY", default="")
 
 # ─── Africa's Talking ─────────────────────────────────────────────────────────
 AT_API_KEY = config("AT_API_KEY", default="")

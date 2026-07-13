@@ -7,6 +7,12 @@ import uuid
 from datetime import datetime, timezone, timedelta
 
 import bcrypt
+import pytest
+from django.conf import settings
+
+import apps.auth_app.email_service as email_service_module
+from apps.auth_app.email_service import AdminAuthEmailService, EmailDeliveryError
+from resend.exceptions import ResendError
 
 
 class TestLoginEndpoint:
@@ -80,6 +86,35 @@ class TestLoginEndpoint:
             content_type="application/json",
         )
         assert test_db["audit_logs"].count_documents({"action": "LOGIN_FAIL"}) == 1
+
+
+class TestAdminAuthEmailService:
+    def test_send_otp_raises_when_resend_api_key_missing(self, monkeypatch):
+        monkeypatch.setattr(settings, "RESEND_API_KEY", "")
+        monkeypatch.setattr(settings, "DEFAULT_FROM_EMAIL", "Ghana Tax System <no-reply@example.com>")
+
+        service = AdminAuthEmailService()
+
+        with pytest.raises(EmailDeliveryError, match="RESEND_API_KEY"):
+            service.send_otp("user@example.com", "123456")
+
+    def test_send_otp_raises_when_resend_provider_returns_error(self, monkeypatch):
+        monkeypatch.setattr(settings, "RESEND_API_KEY", "invalid-key")
+        monkeypatch.setattr(settings, "DEFAULT_FROM_EMAIL", "Ghana Tax System <no-reply@example.com>")
+
+        def raise_resend_error(self, params):
+            raise ResendError(
+                code="invalid_request",
+                error_type="authentication_error",
+                message="Invalid API key",
+                suggested_action="Verify your Resend API key.",
+            )
+
+        monkeypatch.setattr(email_service_module.Emails, "send", raise_resend_error)
+        service = AdminAuthEmailService()
+
+        with pytest.raises(EmailDeliveryError, match="Could not send verification code"):
+            service.send_otp("user@example.com", "123456")
 
 
 class TestOtpFlow:
