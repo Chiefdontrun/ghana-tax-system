@@ -162,9 +162,10 @@ See `infra/.env.example` for the full list. Key variables:
 >
 > Also add MongoDB env vars on Vercel:
 >
-> - `MONGO_URI` = `mongodb+srv://<USERNAME>:<PASSWORD>@cluster0.chagh64.mongodb.net/ghana_tax_db`
+> - `MONGO_URI` or `MONGODB_URI` = `mongodb+srv://<USERNAME>:<PASSWORD>@cluster0.chagh64.mongodb.net/ghana_tax_db`
 > - `MONGO_DB_NAME` = `ghana_tax_db`
 >
+> Make sure `JWT_SECRET_KEY` is a strong secret and not left as the default placeholder.
 > Do not store these values in `.env` or commit them to source control.
 
 ---

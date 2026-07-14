@@ -68,13 +68,24 @@ class AuthService:
         Full admin tokens are only issued after OTP verification.
         Raises AuthenticationFailed on bad credentials or inactive account.
         """
-        admin = _admin_repo.find_by_email(email)
+        logger.debug("Login attempt for %s from %s", email, ip_address)
+        try:
+            admin = _admin_repo.find_by_email(email)
+        except Exception as exc:
+            logger.exception("Login failed for %s: database lookup error", email)
+            raise RuntimeError("Authentication is currently unavailable. Please try again later.") from exc
+
+        if admin is None:
+            logger.warning("Admin login failed for %s: admin not found", email)
+        else:
+            logger.debug("Admin found for %s, active=%s", email, admin.get("is_active", True))
 
         # We always run bcrypt (even on miss) to prevent timing attacks
         password_hash = admin["password_hash"] if admin else "$2b$12$invalidhashpadding00000000000000000000000000000000000"
         credentials_valid = admin is not None and _check_password(password, password_hash)
 
         if not credentials_valid or not admin:
+            logger.warning("Admin login failed for %s: invalid credentials", email)
             _audit_repo.log({
                 "event_id": str(uuid.uuid4()),
                 "actor_id": "anonymous",

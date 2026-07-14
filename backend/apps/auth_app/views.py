@@ -49,8 +49,11 @@ class LoginView(APIView):
             return success_response(data=result, message="Verification code sent.")
         except EmailDeliveryError as exc:
             return error_response(str(exc), http_status=503)
-        except Exception as exc:
+        except AuthenticationFailed as exc:
             return error_response(str(exc), http_status=401)
+        except Exception as exc:
+            logger.exception("Unexpected error during login for %s", serializer.validated_data.get("email"))
+            return error_response("An internal error occurred.", http_status=500)
 
 
 # ── POST /api/auth/verify-otp ─────────────────────────────────────────────────
@@ -82,7 +85,8 @@ class VerifyOtpView(APIView):
         except AuthenticationFailed as exc:
             return error_response(str(exc), http_status=401)
         except Exception as exc:
-            return error_response(str(exc), http_status=401)
+            logger.exception("Unexpected error during OTP verification")
+            return error_response("An internal error occurred.", http_status=500)
 
 
 # ── POST /api/auth/resend-otp ─────────────────────────────────────────────────
@@ -111,7 +115,8 @@ class ResendOtpView(APIView):
         except AuthenticationFailed as exc:
             return error_response(str(exc), http_status=401)
         except Exception as exc:
-            return error_response(str(exc), http_status=401)
+            logger.exception("Unexpected error during OTP resend")
+            return error_response("An internal error occurred.", http_status=500)
 
 
 # ── POST /api/auth/refresh ─────────────────────────────────────────────────────
@@ -131,8 +136,11 @@ class RefreshView(APIView):
                 serializer.validated_data["refresh"]
             )
             return success_response(data=result, message="Token refreshed.")
-        except Exception as exc:
+        except AuthenticationFailed as exc:
             return error_response(str(exc), http_status=401)
+        except Exception as exc:
+            logger.exception("Unexpected error during token refresh")
+            return error_response("An internal error occurred.", http_status=500)
 
 
 # ── GET /api/me ────────────────────────────────────────────────────────────────

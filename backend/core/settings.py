@@ -8,6 +8,7 @@ import os
 import warnings
 from pathlib import Path
 from decouple import config, Csv
+from django.core.exceptions import ImproperlyConfigured
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -58,9 +59,16 @@ DATABASES = {
 }
 
 # ─── MongoDB (primary data store) ─────────────────────────────────────────────
-MONGO_URI = config("MONGO_URI", default="mongodb://localhost:27017/ghana_tax_db")
+MONGO_URI = os.environ.get("MONGODB_URI") or config("MONGO_URI", default="")
 _MONGO_DB_NAME = config("MONGO_DB_NAME", default="ghana_tax_db", cast=str).strip()
 MONGO_DB_NAME = _MONGO_DB_NAME.lstrip("/")
+if not MONGO_URI:
+    if DEBUG:
+        MONGO_URI = "mongodb://localhost:27017/ghana_tax_db"
+    else:
+        raise ImproperlyConfigured(
+            "MONGO_URI or MONGODB_URI must be set in the environment."
+        )
 
 # ─── Redis ────────────────────────────────────────────────────────────────────
 REDIS_URL = config("REDIS_URL", default="redis://localhost:6379/0")
@@ -116,6 +124,18 @@ REPORTS_CACHE_TTL = config("REPORTS_CACHE_TTL", default=45, cast=int)
 JWT_SECRET_KEY = config("JWT_SECRET_KEY", default="unsafe-jwt-secret-change-in-prod")
 JWT_ACCESS_TOKEN_EXPIRE_MINUTES = config("JWT_ACCESS_TOKEN_EXPIRE_MINUTES", default=60, cast=int)
 JWT_REFRESH_TOKEN_EXPIRE_DAYS = config("JWT_REFRESH_TOKEN_EXPIRE_DAYS", default=7, cast=int)
+if not JWT_SECRET_KEY or JWT_SECRET_KEY.startswith("unsafe-"):
+    raise ImproperlyConfigured(
+        "JWT_SECRET_KEY must be set to a strong secret in the environment."
+    )
+if JWT_ACCESS_TOKEN_EXPIRE_MINUTES <= 0:
+    raise ImproperlyConfigured(
+        "JWT_ACCESS_TOKEN_EXPIRE_MINUTES must be a positive integer."
+    )
+if JWT_REFRESH_TOKEN_EXPIRE_DAYS <= 0:
+    raise ImproperlyConfigured(
+        "JWT_REFRESH_TOKEN_EXPIRE_DAYS must be a positive integer."
+    )
 
 # ─── Email ────────────────────────────────────────────────────────────────────
 EMAIL_BACKEND = config(
