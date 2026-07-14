@@ -6,6 +6,7 @@ with retry-on-startup logic and a clean get_db() / get_collection() API.
 
 import logging
 import time
+import re
 from typing import Optional
 
 from django.conf import settings
@@ -57,7 +58,22 @@ def get_client() -> MongoClient:
             # Trigger an actual network round-trip to verify connectivity
             client.admin.command("ping")
             _client = client
-            logger.info("MongoDB connected (attempt %d/%d): %s", attempt, _MAX_RETRIES, uri)
+            # Log only the host and database name — never log credentials
+            m = re.match(r'^(?:mongodb(?:\+srv)?://)(?:[^@]+@)?(?P<host>[^/]+)(?:/(?P<db>[^?]+))?', uri)
+            if m:
+                host = m.group('host')
+                db_name = m.group('db') or settings.MONGO_DB_NAME
+            else:
+                host = uri
+                db_name = settings.MONGO_DB_NAME
+
+            logger.info(
+                "MongoDB connected (attempt %d/%d): %s/%s",
+                attempt,
+                _MAX_RETRIES,
+                host,
+                db_name,
+            )
             return _client
         except (ConnectionFailure, ServerSelectionTimeoutError) as exc:
             last_exc = exc

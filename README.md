@@ -159,6 +159,13 @@ See `infra/.env.example` for the full list. Key variables:
 
 > On Vercel, add `RESEND_API_KEY` and `DEFAULT_FROM_EMAIL` under Project Settings → Environment Variables.
 > Use a verified sender domain in Resend, for example `Ghana Tax System <no-reply@yourdomain.com>`.
+>
+> Also add MongoDB env vars on Vercel:
+>
+> - `MONGO_URI` = `mongodb+srv://<USERNAME>:<PASSWORD>@cluster0.chagh64.mongodb.net/ghana_tax_db`
+> - `MONGO_DB_NAME` = `ghana_tax_db`
+>
+> Do not store these values in `.env` or commit them to source control.
 
 ---
 
