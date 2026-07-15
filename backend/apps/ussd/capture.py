@@ -1,47 +1,101 @@
 """
-Temporary raw-logging endpoint for Arkesel USSD payload capture.
+Arkesel USSD capture / safety endpoint — POST /ussd/arkesel-capture/
 
-POST /ussd/arkesel-capture/
+Production shortcode must point at POST /ussd/callback/. If the Arkesel
+dashboard is still pointed here (or gets pointed here by mistake), this
+view MUST still run the real state machine so traders are not locked out.
 
-WARNING — DO NOT leave the live Arkesel shortcode callback pointed here.
-Production traders must hit POST /ussd/callback/ (state machine), e.g.:
-  https://ghana-tax-system-hh6f.vercel.app/ussd/callback/
+Behaviour:
+  1. Best-effort raw payload log (local disk or /tmp on serverless).
+  2. CRITICAL log that production traffic hit the capture path.
+  3. Hand off to USSDCallbackView — same response as /ussd/callback/.
 
-This view only logs payloads and returns placeholder CON text. It does not
-register traders, look up TINs, or process payments.
-
-Appends every request to arkesel_payloads_capture.jsonl and mirrors the
-latest request to arkesel_payload.json.
+On Vercel the filesystem under /var/task is read-only; file logging uses
+tempfile.gettempdir() and never fails the request.
 """
+
 from __future__ import annotations
 
 import json
 import logging
+import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
 
 from django.conf import settings
-from django.http import HttpResponse, JsonResponse
 from django.utils.decorators import method_decorator
 from django.views import View
 from django.views.decorators.csrf import csrf_exempt
 
 logger = logging.getLogger(__name__)
 
-# Written under backend/ (cwd when runserver starts from backend/)
-_CAPTURE_JSONL = Path("arkesel_payloads_capture.jsonl")
-_CAPTURE_LATEST = Path("arkesel_payload.json")
-
 
 def _capture_paths() -> tuple[Path, Path]:
-    """Prefer BASE_DIR so paths are stable even if cwd differs."""
-    base = Path(getattr(settings, "BASE_DIR", Path.cwd()))
-    return base / "arkesel_payloads_capture.jsonl", base / "arkesel_payload.json"
+    """
+    Writable paths for capture files.
+    Prefer BASE_DIR when writable (local runserver); else system temp
+    (Vercel / serverless read-only /var/task).
+    """
+    candidates = [
+        Path(getattr(settings, "BASE_DIR", Path.cwd())),
+        Path(tempfile.gettempdir()),
+    ]
+    for base in candidates:
+        try:
+            base.mkdir(parents=True, exist_ok=True)
+            probe = base / ".ussd_capture_write_probe"
+            probe.write_text("ok", encoding="utf-8")
+            probe.unlink(missing_ok=True)
+            return base / "arkesel_payloads_capture.jsonl", base / "arkesel_payload.json"
+        except OSError:
+            continue
+    # Last resort — still under temp; write may fail and is swallowed
+    tmp = Path(tempfile.gettempdir())
+    return tmp / "arkesel_payloads_capture.jsonl", tmp / "arkesel_payload.json"
+
+
+def _best_effort_log(request, body_raw: str, body_json: dict) -> None:
+    record = {
+        "captured_at": datetime.now(timezone.utc).isoformat(),
+        "method": request.method,
+        "headers": dict(request.headers),
+        "GET": dict(request.GET),
+        "POST": dict(request.POST),
+        "body_raw": body_raw,
+        "body_json": body_json if isinstance(body_json, dict) else {},
+    }
+    jsonl_path, latest_path = _capture_paths()
+    try:
+        with open(jsonl_path, "a", encoding="utf-8") as f:
+            f.write(json.dumps(record, ensure_ascii=False) + "\n")
+        with open(latest_path, "w", encoding="utf-8") as f:
+            json.dump(record, f, indent=2, ensure_ascii=False)
+        logger.info(
+            "Arkesel capture log | session=%s newSession=%s userData=%r → %s",
+            body_json.get("sessionID") or body_json.get("sessionId"),
+            body_json.get("newSession"),
+            body_json.get("userData") or body_json.get("text"),
+            jsonl_path,
+        )
+    except OSError as exc:
+        # Never fail the USSD session over logging (read-only /var/task, etc.)
+        logger.warning(
+            "Arkesel capture file log skipped (%s). Payload still processed. "
+            "session=%s userData=%r",
+            exc,
+            body_json.get("sessionID") or body_json.get("sessionId"),
+            body_json.get("userData") or body_json.get("text"),
+        )
 
 
 @method_decorator(csrf_exempt, name="dispatch")
 class ArkeselCaptureView(View):
-    """Log raw Arkesel webhooks; return harmless CON/continue responses."""
+    """
+    Safety net: log + run the real USSD callback.
+
+    Do not leave Arkesel pointed here long-term — repoint to /ussd/callback/ —
+    but while misconfigured, traders still get the state machine.
+    """
 
     def dispatch(self, request, *args, **kwargs):
         body_raw = request.body.decode("utf-8", errors="replace")
@@ -50,77 +104,19 @@ class ArkeselCaptureView(View):
         except ValueError:
             body_json = {}
 
-        record = {
-            "captured_at": datetime.now(timezone.utc).isoformat(),
-            "method": request.method,
-            "headers": dict(request.headers),
-            "GET": dict(request.GET),
-            "POST": dict(request.POST),
-            "body_raw": body_raw,
-            "body_json": body_json if isinstance(body_json, dict) else {},
-        }
+        if not isinstance(body_json, dict):
+            body_json = {}
 
-        jsonl_path, latest_path = _capture_paths()
-        try:
-            with open(jsonl_path, "a", encoding="utf-8") as f:
-                f.write(json.dumps(record, ensure_ascii=False) + "\n")
-            with open(latest_path, "w", encoding="utf-8") as f:
-                json.dump(record, f, indent=2, ensure_ascii=False)
-            logger.info(
-                "Arkesel capture | session=%s newSession=%s userData=%r → %s",
-                body_json.get("sessionID") or body_json.get("sessionId"),
-                body_json.get("newSession"),
-                body_json.get("userData") or body_json.get("text"),
-                jsonl_path,
-            )
-        except OSError as exc:
-            logger.exception("Failed to write Arkesel capture: %s", exc)
+        _best_effort_log(request, body_raw, body_json)
 
-        # Arkesel JSON shape (when payload looks like Arkesel)
-        if isinstance(body_json, dict) and (
-            "userData" in body_json or "sessionID" in body_json or "sessionId" in body_json
-        ):
-            session_id = body_json.get("sessionID") or body_json.get("sessionId") or ""
-            user_id = body_json.get("userID") or body_json.get("userId") or ""
-            msisdn = body_json.get("msisdn") or body_json.get("phoneNumber") or ""
-            new_session = body_json.get("newSession")
-            if new_session is None:
-                # Fallback heuristic only for capture UX — not production parsing
-                ud = str(body_json.get("userData") or "")
-                new_session = ud.startswith("*") and ud.endswith("#")
-
-            logger.critical(
-                "LIVE traffic hit /ussd/arkesel-capture/ — production callback "
-                "must be https://ghana-tax-system-hh6f.vercel.app/ussd/callback/"
-            )
-            if new_session:
-                message = (
-                    "SERVICE MISCONFIGURED\n"
-                    "This is the capture endpoint, not production.\n"
-                    "Set Arkesel callback to /ussd/callback/\n"
-                    "1. Ack (logs only)\n"
-                    "2. Exit"
-                )
-            else:
-                message = (
-                    "SERVICE MISCONFIGURED (capture only).\n"
-                    f"Logged userData={body_json.get('userData')!r}.\n"
-                    "Repoint Arkesel to /ussd/callback/."
-                )
-
-            return JsonResponse(
-                {
-                    "sessionID": session_id,
-                    "userID": user_id,
-                    "msisdn": msisdn,
-                    "message": message,
-                    "continueSession": bool(new_session),
-                }
-            )
-
-        # Plain-text fallback for non-JSON probes
-        return HttpResponse(
-            "CON CAPTURE OK - select 1 to continue",
-            status=200,
-            content_type="text/plain",
+        logger.critical(
+            "LIVE traffic hit /ussd/arkesel-capture/ — processing via state machine "
+            "anyway. Repoint Arkesel to "
+            "https://ghana-tax-system-hh6f.vercel.app/ussd/callback/"
         )
+
+        # Delegate to the real callback so sessions work even if dashboard is wrong.
+        # Import inside method to avoid circular imports at module load.
+        from apps.ussd.views import USSDCallbackView
+
+        return USSDCallbackView.as_view()(request, *args, **kwargs)

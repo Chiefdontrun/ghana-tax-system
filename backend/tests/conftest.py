@@ -33,20 +33,59 @@ def test_db_name():
 
 
 @pytest.fixture(scope="session")
-def mongo_client(test_db_name):
+def mongo_uri():
+    """
+    Prefer local Mongo (docker-compose.dev.yml). If unreachable, fall back to
+    MONGO_URI from the environment / .env (typically Atlas) so the suite can
+    still exercise real request→session-store→state-machine paths.
+    Uses a unique test database name — never writes into the production DB name.
+    """
+    from pymongo import MongoClient
+
+    local = "mongodb://localhost:27017"
+    try:
+        c = MongoClient(local, serverSelectionTimeoutMS=2000)
+        c.admin.command("ping")
+        c.close()
+        return local
+    except Exception:
+        pass
+
+    try:
+        from decouple import config
+        remote = config("MONGO_URI", default="")
+    except Exception:
+        remote = ""
+    if not remote:
+        import os
+        remote = os.environ.get("MONGO_URI", "")
+    if not remote:
+        pytest.skip("No MongoDB: start docker-compose (infra/) or set MONGO_URI")
+
+    # Atlas URIs often embed a default DB path; client still allows other DB names.
+    c = MongoClient(remote, serverSelectionTimeoutMS=15000)
+    c.admin.command("ping")
+    c.close()
+    return remote
+
+
+@pytest.fixture(scope="session")
+def mongo_client(test_db_name, mongo_uri):
     """
     Real MongoClient pointed at a fresh test database.
     Drops the database after the entire session.
     """
     from pymongo import MongoClient
-    client = MongoClient("mongodb://localhost:27017", serverSelectionTimeoutMS=3000)
+    client = MongoClient(mongo_uri, serverSelectionTimeoutMS=15000)
     yield client
-    client.drop_database(test_db_name)
-    client.close()
+    try:
+        client.drop_database(test_db_name)
+    finally:
+        client.close()
 
 
 @pytest.fixture(autouse=True)
-def test_db(mongo_client, test_db_name, settings):
+def test_db(mongo_client, test_db_name, mongo_uri, settings):
     """
     Per-test fixture:
     - Points Django settings at the test DB.
@@ -55,7 +94,7 @@ def test_db(mongo_client, test_db_name, settings):
     - Flushes Redis USSD session keys between tests.
     """
     settings.MONGO_DB_NAME = test_db_name
-    settings.MONGO_URI = "mongodb://localhost:27017"
+    settings.MONGO_URI = mongo_uri
 
     # Point PyMongo singleton directly at the test DB
     import core.utils.mongo as mongo_module
