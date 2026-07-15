@@ -66,3 +66,18 @@ class RegisterTraderView(APIView):
             )
 
         return created_response(data=result, message="Registration successful.")
+
+from apps.auth_app.permissions import IsTraderAuthenticated
+from apps.registration.repository import BusinessRepository
+from core.utils.response import success_response
+
+class MyBusinessesView(APIView):
+    permission_classes = [IsTraderAuthenticated]
+
+    def get(self, request):
+        trader_id = request.user.get("trader_id")
+        repo = BusinessRepository()
+        # Since find_by_owner is likely returning a single business or a cursor,
+        # let's look at BusinessRepository.find_by_owner.
+        businesses = list(repo._col().find({"owner_trader_id": trader_id}, {"_id": 0}))
+        return success_response(data=businesses)

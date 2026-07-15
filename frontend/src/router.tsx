@@ -14,6 +14,8 @@ import HelpPage from "@/features/trader/pages/HelpPage";
 import TraderLoginPage from "@/features/trader/pages/LoginPage";
 import TraderVerifyOtpPage from "@/features/trader/pages/VerifyOtpPage";
 import TraderDashboardPage from "@/features/trader/pages/DashboardPage";
+import PayAssessmentPage from "@/features/trader/pages/PayAssessmentPage";
+import ReceiptPage from "@/features/trader/pages/ReceiptPage";
 
 // ── Admin pages (Phase 10) ────────────────────────────────────────────────────
 import LoginPage from "@/features/admin/pages/LoginPage";
@@ -55,6 +57,8 @@ const router = createBrowserRouter([
     ),
     children: [
       { path: "/trader/dashboard", element: <TraderDashboardPage /> },
+      { path: "/trader/assessments/:id/pay", element: <PayAssessmentPage /> },
+      { path: "/trader/assessments/:id/receipt", element: <ReceiptPage /> },
     ],
   },
   // ── Admin entrypoint ───────────────────────────────────────────────────────

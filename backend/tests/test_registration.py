@@ -170,3 +170,31 @@ class TestTINLookupEndpoint:
             content_type="application/json",
         )
         assert resp.status_code == 422
+
+class TestMyBusinessesEndpoint:
+    @pytest.mark.django_db
+    def test_my_businesses_requires_auth(self, client):
+        resp = client.get("/api/my-businesses/")
+        assert resp.status_code == 401
+
+    @pytest.mark.django_db
+    def test_my_businesses_returns_data(self, client, sample_trader, test_db):
+        from apps.auth_app.jwt_utils import generate_access_token
+        token = generate_access_token(sample_trader["trader_id"], "TRADER")
+        trader_headers = {"HTTP_AUTHORIZATION": f"Bearer {token}"}
+
+        # Insert a business for the trader
+        test_db["businesses"].insert_one({
+            "tin": "TIN-" + sample_trader["trader_id"],
+            "name": "Test Business",
+            "business_type": "sole_proprietorship",
+            "owner_trader_id": sample_trader["trader_id"],
+            "status": "ACTIVE"
+        })
+
+        resp = client.get("/api/my-businesses/", **trader_headers)
+        assert resp.status_code == 200
+        data = resp.json()["data"]
+        assert len(data) == 2
+        assert any(b.get("name") == "Test Business" for b in data)
+

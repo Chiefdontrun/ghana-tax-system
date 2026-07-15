@@ -23,7 +23,7 @@ class PaymentInitiateView(APIView):
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
         trader_id = request.user.get("trader_id")
-        phone_number = request.user.get("phone_number")
+        phone_number = serializer.validated_data.get("phone_number") or request.user.get("phone_number")
         assessment_id = serializer.validated_data["assessment_id"]
         momo_network = serializer.validated_data["momo_network"]
         amount_pesewas = serializer.validated_data.get("amount_pesewas")

@@ -866,3 +866,44 @@ _Frontend (`frontend/`):_
 - Built a highly secure `POST /api/tax/payments/webhook/` accepting generic Paystack events, verifying them cryptographically using `HMAC-SHA512`, and routing to idempotent completion logics.
 - Implemented `_finalize_successful_payment` enforcing proper business rules: deducting assessment due amounts, capping overpayments (calculating and dumping the `overpaid_excess` in `AuditLog`), sending an SMS pseudo-receipt, and ensuring idempotent success.
 - Established `check_pending_payments.py` Django command as a background safety net, validating and finalizing all lingering `PENDING_AUTHORIZATION` payments older than 5 minutes.
+
+
+## [Phase D / Step D1+D2] Trader dashboard + payment page — 2026-07-15
+
+**Status:** Complete
+
+**What was built:**
+- A comprehensive React-based Trader Dashboard (`DashboardPage.tsx`) that retrieves and displays a user's businesses and organizes tax assessments by outstanding/paid statuses.
+- A robust Payment Assessment Page (`PayAssessmentPage.tsx`) with dynamic form state, network selection, and OTP handling conditional on backend response.
+- Implemented a 3-second continuous status polling fallback that updates UI from `PENDING_AUTHORIZATION` to either successful completion or OTP prompting seamlessly without page reloads.
+- Built a printable receipt view (`ReceiptPage.tsx`) tailored for physical printing via CSS classes.
+- Updated backend endpoints (`AssessmentListView`, `PaymentInitiateView`, `MyBusinessesView`) to securely filter and accept inputs (like `phone_number` overrides).
+- Mocked out `_build_provider` in unit testing so that assertions against successful flows don't erroneously execute live against the Paystack Sandbox if local `.env` variables are present.
+
+**Files created/modified:**
+- Modified `backend/apps/payments/serializers.py` & `views.py`
+- Modified `backend/apps/tax/views.py`
+- Created `backend/apps/registration/views.py` `MyBusinessesView`
+- Modified `backend/apps/registration/urls.py`
+- Modified `frontend/src/router.tsx`
+- Created `frontend/src/features/trader/pages/DashboardPage.tsx`
+- Created `frontend/src/features/trader/pages/PayAssessmentPage.tsx`
+- Created `frontend/src/features/trader/pages/ReceiptPage.tsx`
+- Modified `frontend/src/lib/utils.ts`
+- Modified `backend/tests/test_payment_api.py` and `backend/tests/test_registration.py`
+
+**Deviations from spec:**
+- Test clients in Django (`pytest`) were occasionally stripping slashes causing `301 Permanent Redirect` errors on trailing-slash endpoints when testing. This was a pre-existing Django setup issue and decoupled from actual API functionality.
+
+**New facts for the next step (whether phone_number became editable and what C2 change that required, actual poll interval/timeout used, how requires_otp ended up being surfaced in the UI, etc.):**
+- The `phone_number` on the frontend payment form is editable and overrides the user's default phone number to support payments by proxy/assistants. This required the `InitiatePaymentSerializer` to conditionally extract it.
+- The React status poller polls `/api/tax/payments/{id}/status/` precisely every 3 seconds for 100% async state resolution.
+- `requires_otp` is handled dynamically: if the poller yields `requires_otp=True`, the UI gracefully morphs into an OTP submission field overlay showing `display_text`.
+
+**Open questions / things that need a decision:**
+- The USSD flow (Phase E) should ideally not duplicate this exact `initiate_payment` controller code; it will need to directly utilize `PaymentService.initiate_payment` via the in-process service call. Are we ready to begin Phase E?
+
+**Tests:** manual click-through results
+- Navigated successfully to trader dashboard. Assessments fetched and properly mapped to outstanding and paid lists. Amounts cleanly formatted to GHS.
+- Clicked "Pay Now" seamlessly forwarding to assessment pay page. Phone number fallback and override test successful. Mocked OTP prompt triggered correctly on Telecel override and successfully pushed via poller to the receipt view!
+- Unit tests (`MyBusinessesView`, mock providers) all explicitly run and passed.

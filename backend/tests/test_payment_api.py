@@ -44,7 +44,11 @@ def setup_data(sample_trader, assessment_repo):
     }
 
 @pytest.mark.django_db
-def test_initiate_payment_success(client, trader_headers, setup_data, payment_repo, audit_repo):
+@mock.patch("apps.payments.services._build_provider")
+def test_initiate_payment_success(mock_build_provider, client, trader_headers, setup_data, payment_repo, audit_repo):
+    from apps.payments.providers.stub import StubPaymentProvider
+    mock_build_provider.return_value = StubPaymentProvider()
+
     url = reverse("payment-initiate")
     payload = {
         "assessment_id": setup_data["assessment_id"],
@@ -53,7 +57,7 @@ def test_initiate_payment_success(client, trader_headers, setup_data, payment_re
     }
 
     # Use the stub provider which returns PENDING_AUTHORIZATION
-    response = client.post(url, payload, **trader_headers)
+    response = client.post(url, payload, content_type="application/json", **trader_headers)
     assert response.status_code == status.HTTP_201_CREATED
     data = response.json()
 
@@ -92,15 +96,19 @@ def test_initiate_payment_ownership(client, trader_headers, assessment_repo):
     assert "not found" in response.json()["error"].lower()
 
 @pytest.mark.django_db
-def test_initiate_payment_idempotency(client, trader_headers, setup_data, payment_repo):
+@mock.patch("apps.payments.services._build_provider")
+def test_initiate_payment_idempotency(mock_build_provider, client, trader_headers, setup_data, payment_repo):
+    from apps.payments.providers.stub import StubPaymentProvider
+    mock_build_provider.return_value = StubPaymentProvider()
+
     url = reverse("payment-initiate")
     payload = {
         "assessment_id": setup_data["assessment_id"],
+        "amount_pesewas": 2000,
         "momo_network": "mtn"
     }
 
-    # First call
-    response1 = client.post(url, payload, **trader_headers)
+    response1 = client.post(url, payload, content_type="application/json", **trader_headers)
     assert response1.status_code == status.HTTP_201_CREATED
     payment_id_1 = response1.json()["payment_id"]
 
@@ -175,6 +183,7 @@ def test_provider_failed(mock_charge, client, trader_headers, setup_data, paymen
     }
 
     response = client.post(url, payload, **trader_headers)
+    print(response.json())
     assert response.status_code == status.HTTP_400_BAD_REQUEST
     assert response.json()["error"] == "Insufficient funds"
 

@@ -48,3 +48,9 @@ export function capitalize(str: string): string {
   if (!str) return "";
   return str.charAt(0).toUpperCase() + str.slice(1);
 }
+
+/** Format pesewas into GHS. */
+export function formatMoney(pesewas: number): string {
+  if (!pesewas || isNaN(pesewas)) return "0.00";
+  return (pesewas / 100).toFixed(2);
+}

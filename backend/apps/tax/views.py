@@ -6,7 +6,7 @@ import uuid
 from rest_framework.views import APIView
 from rest_framework.permissions import IsAuthenticated
 
-from apps.auth_app.permissions import IsTaxAdmin, IsSysAdmin
+from apps.auth_app.permissions import IsTaxAdmin, IsSysAdmin, IsTraderAuthenticated
 from core.utils.response import success_response, error_response
 from apps.tax.services import TaxService
 from apps.tax.exceptions import TurnoverRequiredError, RateScheduleNotFoundError
@@ -169,7 +169,7 @@ class GenerateBatchView(APIView):
         return success_response(data=summary, message="Batch generation completed.")
 
 class AssessmentListView(APIView):
-    permission_classes = [IsTaxAdmin]
+    permission_classes = [IsTaxAdmin | IsTraderAuthenticated]
 
     def get(self, request):
         repo = TaxAssessmentRepository()
@@ -177,6 +177,10 @@ class AssessmentListView(APIView):
         for key in ["status", "business_type", "region", "district", "period_label", "trader_id"]:
             if val := request.query_params.get(key):
                 query[key] = val
+                
+        # Force trader scope if accessed by a trader (zero trust client param)
+        if request.user.get("trader_id"):
+            query["trader_id"] = request.user.get("trader_id")
         
         page = int(request.query_params.get("page", 1))
         page_size = int(request.query_params.get("page_size", 20))
