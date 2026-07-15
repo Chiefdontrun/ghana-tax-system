@@ -31,6 +31,42 @@
 
 ---
 
+## 13. [Phase A / Step A2] Assessment calculation & generation service — 2026-07-15
+
+**Status:** Complete
+
+**What was built:**
+- `TaxService` calculating exact assessment amounts based on `FIXED` and `PERCENTAGE_TURNOVER` rules.
+- Precedence logic (district > region > assembly-wide) for active tax schedules matching the trader context.
+- Hooks automatically generating assessments post-registration in both Web and USSD pathways.
+- Idempotent API structures enforcing "one generation per year per tax category".
+- Batch assessment generator aggregating `needs_turnover` and `missing_schedule` events instead of crashing.
+- Custom exceptions `TurnoverRequiredError` and `RateScheduleNotFoundError` for precise error catching.
+
+**Files created/modified:**
+- `backend/apps/tax/exceptions.py` (New)
+- `backend/apps/tax/services.py` (Modified heavily)
+- `backend/apps/registration/services.py` (Modified hooks)
+- `backend/tests/test_tax.py` (Tests added)
+
+**Deviations from spec:**
+- Handled floating-point rounding accurately using `Decimal` quantization rather than standard `round()` to guarantee reproducible currency figures. 
+
+**New facts for the next step (exact function signatures, exception names, rounding behavior chosen, due_date convention used, etc.):**
+- Rounding behavior is `ROUND_HALF_UP` out of `Decimal` quantized to `.quantize(Decimal("1"))` resulting in the nearest integer pesewa.
+- Due date logic is Dec 31st of the evaluation year specifically for `"BOP"` schedules.
+- `TurnoverRequiredError` raises when `% turnover` calculation triggers without turnover data.
+- `RateScheduleNotFoundError` raises when no exact-region/district or global fallback match can be established.
+- Idempotency evaluates matches on `(business_id, tax_category, period_label)`.
+
+**Open questions / things that need a decision:**
+- How should un-collected `PERCENTAGE_TURNOVER` instances be targeted by admin staff if `admin_batch` skips them?
+
+**Tests:** 
+- `backend/tests/test_tax.py`: 9 out of 9 tests pass. Success verifying bounds capping, exception handling, batch accumulation, exact value mapping, and DB idempotency constraints.
+
+---
+
 ### [PHASE A1] — Tax collections and repository foundation
 
 **Date:** 2026-07-15

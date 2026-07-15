@@ -105,6 +105,18 @@ class RegistrationService:
         }
         _business_repo.create(business_doc)
 
+        # ── 4c. Auto-generate assessment ──────────────────────────────────────
+        try:
+            from apps.tax.services import TaxService
+            TaxService().generate_assessment(
+                business_id=business_doc["business_id"],
+                tax_category="BOP",
+                period_label=str(datetime.now(timezone.utc).year),
+                channel_generated="auto_on_registration"
+            )
+        except Exception as exc:
+            logger.warning("Failed to auto-generate assessment for %s: %s", business_doc["business_id"], exc)
+
         # ── 5. Audit log ──────────────────────────────────────────────────────
         _audit_repo.log({
             "action": "CREATE_TRADER",
@@ -205,6 +217,17 @@ class RegistrationService:
             "location_id": location.get("location_id"),
         }
         _business_repo.create(business_doc)
+
+        try:
+            from apps.tax.services import TaxService
+            TaxService().generate_assessment(
+                business_id=business_doc["business_id"],
+                tax_category="BOP",
+                period_label=str(datetime.now(timezone.utc).year),
+                channel_generated="auto_on_registration"
+            )
+        except Exception as exc:
+            logger.warning("Failed to auto-generate assessment for %s: %s", business_doc["business_id"], exc)
 
         _audit_repo.log({
             "action": "CREATE_TRADER",
