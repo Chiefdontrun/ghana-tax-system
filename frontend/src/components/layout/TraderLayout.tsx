@@ -1,5 +1,5 @@
 import { Outlet } from "react-router-dom";
-import { useTraderAuth } from "../features/trader/hooks/useTraderAuth";
+import { useTraderAuth } from "@/features/trader/hooks/useTraderAuth";
 import { useTraderAuthStore } from "@/store/traderAuthStore";
 
 export default function TraderLayout() {
