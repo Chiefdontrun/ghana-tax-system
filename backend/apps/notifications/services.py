@@ -44,3 +44,20 @@ class NotificationService:
                 phone, tin, result.get("error"),
             )
         return result
+
+    def send_otp_sms(self, phone: str, otp_code: str) -> dict:
+        """
+        Send a 6-digit OTP verification code.
+        Returns the provider result dict: {success, message_id, error}.
+        """
+        message = (
+            f"Your District Assembly portal verification code is {otp_code}. "
+            "It expires in 5 minutes. Do not share this code."
+        )
+        result = self._provider.send_sms(phone, message)
+        if not result.get("success"):
+            logger.warning(
+                "OTP SMS failed for %s: %s",
+                phone, result.get("error"),
+            )
+        return result

@@ -18,6 +18,7 @@ urlpatterns = [
     path("api/audit-logs/", include("apps.audit.urls")),
     path("api/admin/", include("apps.auth_app.admin_urls")),
     path("api/tax/", include("apps.tax.urls")),
+    path("api/trader-auth/", include("apps.trader_auth.urls")),
     # USSD webhook
     path("ussd/", include("apps.ussd.urls")),
 ]

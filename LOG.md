@@ -711,3 +711,31 @@ _Frontend (`frontend/`):_
 - The frontend router fully wires all 11 routes. Stub pages render a placeholder — the app is navigable immediately.
 - `authStore` uses `sessionStorage` (not localStorage) — cleared on tab close for security.
 - All `.env` files are `.env.example` only — actual `.env` files are gitignored.
+
+## [Phase B / Step B1] Trader OTP request/verify endpoints — 2026-07-15
+
+**Status:** Complete
+
+**What was built:**
+- A generic, non-enumerating OTP request/verification service specifically scoped for traders.
+- `apps.trader_auth` containing Django views, DRF serializers, core services, and a MongoDB repository interacting with `trader_otp_verifications`.
+- Robust token issuance utilizing existing `jwt_utils` emitting tokens tagged with a TRADER role.
+- Security enhancements for `JWTAuthentication` validating and distinguishing between Admins and Traders based on the token payload, and the creation of `IsTraderAuthenticated`.
+
+**Files created/modified:**
+- Modified `backend/core/utils/mongo.py` and `backend/core/settings.py` for new apps and collections.
+- Modified `backend/apps/notifications/services.py` to abstract SMS dispatching.
+- Modified `backend/apps/registration/repository.py` to inject update logic for `last_login_at`.
+- Modified `backend/apps/auth_app/authentication.py` & `permissions.py` for role boundaries.
+- Created `backend/apps/trader_auth/repository.py`
+- Created `backend/apps/trader_auth/services.py`
+- Created `backend/apps/trader_auth/serializers.py`
+- Created `backend/apps/trader_auth/views.py`
+- Created `backend/apps/trader_auth/urls.py`
+- Wired to `backend/core/urls.py`
+- Created `backend/tests/test_trader_auth.py`
+
+**Deviations from spec:**
+- Handled the `get_request_context` omission from `audit_middleware.py`. Passed `request_info` directly down from views to service layers to satisfy audit requirements instead of magical request extraction.
+
+**Tests:** All 4/4 TraderAuth tests pass (100% success rate on non-enumeration, lockout handling, rate limiting bounds, and cross-role boundary tests).

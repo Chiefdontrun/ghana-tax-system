@@ -37,6 +37,7 @@ INSTALLED_APPS = [
     "apps.ussd",
     "apps.notifications",
     "apps.tax",
+    "apps.trader_auth",
 ]
 
 MIDDLEWARE = [

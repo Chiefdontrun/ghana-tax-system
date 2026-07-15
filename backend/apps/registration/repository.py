@@ -82,6 +82,13 @@ class TraderRepository:
         doc.pop("_id", None)
         return doc
 
+    def update(self, trader_id: str, update_data: dict) -> None:
+        """Update fields on a trader document."""
+        self._col().update_one(
+            {"trader_id": trader_id},
+            {"$set": update_data}
+        )
+
     # ── Helpers ────────────────────────────────────────────────────────────────
 
     @staticmethod

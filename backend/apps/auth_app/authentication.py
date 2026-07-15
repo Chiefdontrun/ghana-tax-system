@@ -42,20 +42,37 @@ class JWTAuthentication(BaseAuthentication):
         except (TokenExpiredError, TokenInvalidError) as exc:
             raise AuthenticationFailed(str(exc)) from exc
 
-        admin_id = payload.get("sub")
-        if not admin_id:
+        user_id = payload.get("sub")
+        role = payload.get("role")
+        if not user_id:
             raise AuthenticationFailed("Token payload missing 'sub' field.")
 
-        admin = _admin_repo.find_by_id(admin_id)
-        if not admin:
-            raise AuthenticationFailed("Admin account not found.")
+        if role == "TRADER":
+            from apps.registration.repository import TraderRepository
+            trader = TraderRepository().find_by_id(user_id)
+            if not trader:
+                raise AuthenticationFailed("Trader account not found.")
+            
+            # The spec notes traders don't currently have an is_active field
+            if trader.get("is_active", True) is False:
+                raise AuthenticationFailed("Trader account is deactivated.")
 
-        if not admin.get("is_active", True):
-            raise AuthenticationFailed("Admin account is deactivated.")
+            request.trader = trader
+            request.user = trader  # Sets DRF request.user
+            # Return tuple (user, auth)
+            return (trader, payload)
+        else:
+            admin = _admin_repo.find_by_id(user_id)
+            if not admin:
+                raise AuthenticationFailed("Admin account not found.")
 
-        # Attach structured admin info to the request for easy access in views
-        request.admin = admin
-        return (admin, payload)
+            if not admin.get("is_active", True):
+                raise AuthenticationFailed("Admin account is deactivated.")
+
+            # Attach structured admin info to the request for easy access in views
+            request.admin = admin
+            request.user = admin  # Sets DRF request.user
+            return (admin, payload)
 
     def authenticate_header(self, request) -> str:
         return 'Bearer realm="ghana-tax-api"'

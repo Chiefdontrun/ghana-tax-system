@@ -54,3 +54,24 @@ class IsSysAdmin(BasePermission):
         if not hasattr(request, "admin") or not request.admin:
             return False
         return request.admin.get("role") == "SYS_ADMIN"
+
+
+class IsTraderAuthenticated(BasePermission):
+    """
+    Allows access to any authenticated trader.
+    Requires JWTAuthentication to have attached the TRADER role to the token payload,
+    which is loaded into request.user (since traders use the same JWT flow but a different role).
+    Note: JWTAuthentication currently attaches to `request.user` when the token is valid,
+    but `request.admin` is only attached if it's an admin. We'll use request.user.get("role").
+    Wait, `JWTAuthentication` in `apps/auth_app/authentication.py` might need looking at.
+    """
+
+    message = "Trader authentication required."
+
+    def has_permission(self, request, view) -> bool:
+        # JWTAuthentication returns (user, payload), so payload is in request.auth
+        return bool(
+            request.user is not None
+            and request.auth is not None
+            and request.auth.get("role") == "TRADER"
+        )

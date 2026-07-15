@@ -63,7 +63,7 @@ def test_db(mongo_client, test_db_name, settings):
     mongo_module._db = mongo_client[test_db_name]
 
     db = mongo_client[test_db_name]
-    for col in ["traders", "businesses", "locations", "admins", "audit_logs", "ussd_sessions", "otp_verifications", "tax_rate_schedules", "tax_assessments", "tax_payments", "tax_assessment_exceptions"]:
+    for col in ["traders", "businesses", "locations", "admins", "audit_logs", "ussd_sessions", "otp_verifications", "tax_rate_schedules", "tax_assessments", "tax_payments", "tax_assessment_exceptions", "trader_otp_verifications"]:
         db[col].delete_many({})
 
     # Clear Redis USSD sessions between tests atomically
