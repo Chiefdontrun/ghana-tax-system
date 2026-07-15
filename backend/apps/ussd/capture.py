@@ -3,13 +3,16 @@ Temporary raw-logging endpoint for Arkesel USSD payload capture.
 
 POST /ussd/arkesel-capture/
 
-Appends every request (body + headers) to arkesel_payloads_capture.jsonl
-and mirrors the latest request to arkesel_payload.json for convenience.
+WARNING — DO NOT leave the live Arkesel shortcode callback pointed here.
+Production traders must hit POST /ussd/callback/ (state machine), e.g.:
+  https://ghana-tax-system-hh6f.vercel.app/ussd/callback/
 
-Returns a minimal Arkesel-compatible JSON response so a live multi-step
-session can continue far enough to capture a follow-up userData payload.
+This view only logs payloads and returns placeholder CON text. It does not
+register traders, look up TINs, or process payments.
+
+Appends every request to arkesel_payloads_capture.jsonl and mirrors the
+latest request to arkesel_payload.json.
 """
-
 from __future__ import annotations
 
 import json
@@ -86,18 +89,23 @@ class ArkeselCaptureView(View):
                 ud = str(body_json.get("userData") or "")
                 new_session = ud.startswith("*") and ud.endswith("#")
 
+            logger.critical(
+                "LIVE traffic hit /ussd/arkesel-capture/ — production callback "
+                "must be https://ghana-tax-system-hh6f.vercel.app/ussd/callback/"
+            )
             if new_session:
                 message = (
-                    "CAPTURE OK (step 1)\n"
-                    "Select any option so we can capture request #2:\n"
-                    "1. Continue\n"
+                    "SERVICE MISCONFIGURED\n"
+                    "This is the capture endpoint, not production.\n"
+                    "Set Arkesel callback to /ussd/callback/\n"
+                    "1. Ack (logs only)\n"
                     "2. Exit"
                 )
             else:
                 message = (
-                    "CAPTURE OK (follow-up)\n"
-                    f"Received userData={body_json.get('userData')!r}\n"
-                    "You can end the session now."
+                    "SERVICE MISCONFIGURED (capture only).\n"
+                    f"Logged userData={body_json.get('userData')!r}.\n"
+                    "Repoint Arkesel to /ussd/callback/."
                 )
 
             return JsonResponse(
