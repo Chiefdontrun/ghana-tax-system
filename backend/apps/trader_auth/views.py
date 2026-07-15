@@ -4,10 +4,15 @@ from django_ratelimit.decorators import ratelimit
 from rest_framework.views import APIView
 from rest_framework.permissions import AllowAny
 
-from apps.trader_auth.serializers import TraderOtpRequestSerializer, TraderOtpVerifySerializer
+from apps.trader_auth.serializers import (
+    TraderOtpRequestSerializer,
+    TraderOtpVerifySerializer,
+    TraderRefreshSerializer,
+)
 from apps.trader_auth.services import TraderAuthService, RateLimitedError
 from apps.ussd.validators import normalise_phone
 from core.utils.response import success_response, error_response
+from rest_framework.exceptions import AuthenticationFailed
 
 logger = logging.getLogger(__name__)
 
@@ -63,3 +68,24 @@ class TraderOtpVerifyView(APIView):
         except Exception as e:
             logger.exception("OTP verify failed")
             return error_response("Internal server error", http_status=500)
+
+class TraderRefreshView(APIView):
+    permission_classes = [AllowAny]
+    authentication_classes = []
+
+    @method_decorator(ratelimit(key="ip", rate="20/m", method="POST", block=True))
+    def post(self, request):
+        serializer = TraderRefreshSerializer(data=request.data)
+        if not serializer.is_valid():
+            return error_response("Validation error.", errors=serializer.errors, http_status=400)
+
+        try:
+            result = _auth_service.refresh_access_token(
+                serializer.validated_data["refresh"]
+            )
+            return success_response(data=result, message="Token refreshed.")
+        except AuthenticationFailed as exc:
+            return error_response(str(exc), http_status=401)
+        except Exception as exc:
+            logger.exception("Unexpected error during token refresh")
+            return error_response("An internal error occurred.", http_status=500)

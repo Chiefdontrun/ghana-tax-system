@@ -739,3 +739,36 @@ _Frontend (`frontend/`):_
 - Handled the `get_request_context` omission from `audit_middleware.py`. Passed `request_info` directly down from views to service layers to satisfy audit requirements instead of magical request extraction.
 
 **Tests:** All 4/4 TraderAuth tests pass (100% success rate on non-enumeration, lockout handling, rate limiting bounds, and cross-role boundary tests).
+
+## [Phase B / Step B3] Frontend trader login UI — 2026-07-15
+
+**Status:** Complete
+
+**What was built:**
+- React UI for trader authentication (`LoginPage.tsx`, `VerifyOtpPage.tsx`) mirroring the admin auth visual language but physically isolated.
+- `useTraderAuthStore` implemented with Zustand, storing tokens and trader data via `sessionStorage` under `ghana-tax-trader-auth`.
+- Axios networking via `traderApi.ts` featuring silent token refresh on HTTP 401s.
+- `ProtectedTraderRoute.tsx` safeguarding the `DashboardPage` placeholder.
+- **Backend Gap Closed**: `/api/trader-auth/refresh/` was implemented as B1 missed it.
+
+**Files created/modified:**
+- Created `frontend/src/features/trader/pages/LoginPage.tsx`
+- Created `frontend/src/features/trader/pages/VerifyOtpPage.tsx`
+- Created `frontend/src/features/trader/pages/DashboardPage.tsx` (placeholder)
+- Created `frontend/src/features/trader/hooks/useTraderAuth.ts`
+- Created `frontend/src/store/traderAuthStore.ts`
+- Created `frontend/src/lib/traderApi.ts`
+- Created `frontend/src/components/layout/TraderLayout.tsx`
+- Created `frontend/src/components/layout/ProtectedTraderRoute.tsx`
+- Modified `frontend/src/router.tsx` to mount trader endpoints.
+- Modified `backend/apps/trader_auth/services.py`, `serializers.py`, `views.py`, `urls.py` to add `refresh_access_token`
+- Modified `backend/tests/test_trader_auth.py`
+
+**Deviations from spec:**
+- Identified that B1 omitted the Trader Refresh mechanism in the API layer. Built out `/api/trader-auth/refresh/` along with matching tests before constructing the frontend interceptors.
+- Discovered `PublicLayout` assumes public routes. Extracted a basic `TraderLayout.tsx` with a top navigation bar ("Logout", and displaying their name) for the logged-in views.
+
+**Tests:**
+- Backend `test_trader_auth_refresh` tested & passed.
+- Manual click-through results: Success. Non-enumeration masks invalid phone inputs natively, correct submissions forward to verification, expiration times down correctly, and valid verification hits dashboard placeholder. Sessions persist cross-tab.
+

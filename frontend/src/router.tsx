@@ -11,6 +11,9 @@ import RegisterPage from "@/features/trader/pages/RegisterPage";
 import RegistrationSuccessPage from "@/features/trader/pages/RegistrationSuccessPage";
 import CheckTinPage from "@/features/trader/pages/CheckTinPage";
 import HelpPage from "@/features/trader/pages/HelpPage";
+import TraderLoginPage from "@/features/trader/pages/LoginPage";
+import TraderVerifyOtpPage from "@/features/trader/pages/VerifyOtpPage";
+import TraderDashboardPage from "@/features/trader/pages/DashboardPage";
 
 // ── Admin pages (Phase 10) ────────────────────────────────────────────────────
 import LoginPage from "@/features/admin/pages/LoginPage";
@@ -25,6 +28,8 @@ import AuditLogsPage from "@/features/admin/pages/AuditLogsPage";
 import PublicLayout from "@/components/layout/PublicLayout";
 import AdminLayout from "@/components/layout/AdminLayout";
 import ProtectedRoute from "@/components/layout/ProtectedRoute";
+import TraderLayout from "@/components/layout/TraderLayout";
+import ProtectedTraderRoute from "@/components/layout/ProtectedTraderRoute";
 
 const router = createBrowserRouter([
   // ── Public trader routes ────────────────────────────────────────────────────
@@ -36,6 +41,20 @@ const router = createBrowserRouter([
       { path: "/register/success", element: <RegistrationSuccessPage /> },
       { path: "/check-tin", element: <CheckTinPage /> },
       { path: "/help", element: <HelpPage /> },
+    ],
+  },
+  // ── Trader auth (no layout wrapper) ────────────────────────────────────────
+  { path: "/trader/login", element: <TraderLoginPage /> },
+  { path: "/trader/verify-otp", element: <TraderVerifyOtpPage /> },
+  // ── Protected trader routes ──────────────────────────────────────────────────
+  {
+    element: (
+      <ProtectedTraderRoute>
+        <TraderLayout />
+      </ProtectedTraderRoute>
+    ),
+    children: [
+      { path: "/trader/dashboard", element: <TraderDashboardPage /> },
     ],
   },
   // ── Admin entrypoint ───────────────────────────────────────────────────────

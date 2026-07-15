@@ -102,3 +102,17 @@ def test_trader_auth_role_isolation(client, auth_client_sys, auth_client_trader,
     # A trader can access a trader endpoint
     res_trader = auth_client_trader.get("/api/dummy-trader-test/")
     assert res_trader.status_code == 200
+
+def test_trader_auth_refresh(client, sample_trader, test_db):
+    from apps.auth_app.jwt_utils import generate_refresh_token
+    
+    refresh_token = generate_refresh_token(sample_trader["trader_id"])
+    res = client.post("/api/trader-auth/refresh/", {"refresh": refresh_token})
+    
+    assert res.status_code == 200
+    data = res.json()["data"]
+    assert "access" in data
+    
+    # Invalid token test
+    res = client.post("/api/trader-auth/refresh/", {"refresh": "invalid.token.here"})
+    assert res.status_code == 401

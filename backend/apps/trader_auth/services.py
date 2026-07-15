@@ -13,8 +13,16 @@ import bcrypt
 from apps.trader_auth.repository import TraderOTPRepository
 from apps.registration.repository import TraderRepository
 from apps.notifications.services import NotificationService
-from apps.auth_app.jwt_utils import generate_access_token, generate_refresh_token
+from apps.auth_app.jwt_utils import (
+    generate_access_token,
+    generate_refresh_token,
+    verify_token,
+    TOKEN_TYPE_REFRESH,
+    TokenExpiredError,
+    TokenInvalidError,
+)
 from apps.audit.repository import AuditRepository
+from rest_framework.exceptions import AuthenticationFailed
 
 logger = logging.getLogger(__name__)
 
@@ -166,3 +174,26 @@ class TraderAuthService:
             "user_agent": request_info.get("user_agent"),
             "meta": {"reason": reason},
         })
+
+    def refresh_access_token(self, refresh_token: str) -> dict:
+        """
+        Validate a refresh token and issue a new access token for a trader.
+        Raises AuthenticationFailed if the token is invalid/expired or trader not found.
+        """
+        try:
+            payload = verify_token(refresh_token, expected_type=TOKEN_TYPE_REFRESH)
+        except (TokenExpiredError, TokenInvalidError) as exc:
+            raise AuthenticationFailed(str(exc)) from exc
+
+        trader_id = payload.get("sub")
+        trader = self._trader_repo.find_by_id(trader_id)
+        if not trader:
+            raise AuthenticationFailed("Trader account not found.")
+        
+        # Note: Spec says traders don't have is_active, so we skip checking it here
+        # or we could do `if trader.get("is_active", True) is False:`
+        if trader.get("is_active", True) is False:
+            raise AuthenticationFailed("Trader account is deactivated.")
+
+        new_access = generate_access_token(trader_id, "TRADER")
+        return {"access": new_access}
