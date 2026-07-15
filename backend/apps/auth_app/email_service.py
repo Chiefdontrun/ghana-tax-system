@@ -36,6 +36,21 @@ class AdminAuthEmailService:
             f"Your Ghana Tax System admin verification code is {code}.\n\n"
             "It expires in 5 minutes. Do not share this code with anyone."
         )
+
+        if getattr(settings, "DEBUG", False) and not getattr(settings, "RESEND_API_KEY", ""):
+            logger.info("========================================")
+            logger.info("DEBUG MODE: Intercepted OTP Email")
+            logger.info("To: %s", email)
+            logger.info("Code: %s", code)
+            logger.info("========================================")
+            return
+
+        # In testing mode, redirect all emails to the registered developer email to bypass Resend restrictions
+        if getattr(settings, "DEBUG", False):
+            seed_email = getattr(settings, "SEED_ADMIN_EMAIL", "")
+            if seed_email and email != seed_email:
+                logger.info("DEBUG MODE: Redirecting OTP Email from %s to %s", email, seed_email)
+                email = seed_email
         from_email = getattr(settings, "DEFAULT_FROM_EMAIL", "")
         if not from_email:
             raise EmailDeliveryError(
@@ -80,7 +95,8 @@ class AdminAuthEmailService:
                 "Could not send verification code. Please try again."
             ) from exc
 
-        if not getattr(response, "id", None):
+        response_id = response.get("id") if isinstance(response, dict) else getattr(response, "id", None)
+        if not response_id:
             raise EmailDeliveryError(
                 "Email provider did not confirm delivery of the verification code."
             )
