@@ -155,13 +155,17 @@ DEFAULT_FROM_EMAIL = config(
 )
 RESEND_API_KEY = config("RESEND_API_KEY", default="")
 
-# ─── Africa's Talking ─────────────────────────────────────────────────────────
-# Africa's Talking — legacy SMS fallback (prefer Arkesel when configured)
+# ─── Brevo SMS (preferred) ────────────────────────────────────────────────────
+# Transactional SMS via https://api.brevo.com/v3/transactionalSMS/send
+BREVO_API_KEY = config("BREVO_API_KEY", default="")
+# Alias accepted for clarity in SMS-only deploys
+BREVO_SMS_API_KEY = config("BREVO_SMS_API_KEY", default="")
+BREVO_SMS_SENDER = config("BREVO_SMS_SENDER", default="GH-REVENUE")
+
+# ─── Legacy SMS fallbacks (used only if Brevo key is empty) ───────────────────
 AT_API_KEY = config("AT_API_KEY", default="")
 AT_USERNAME = config("AT_USERNAME", default="")
 AT_SENDER_ID = config("AT_SENDER_ID", default="GH-REVENUE")
-
-# Arkesel SMS (preferred when ARKESEL_SMS_API_KEY is set)
 ARKESEL_SMS_API_KEY = config("ARKESEL_SMS_API_KEY", default="")
 ARKESEL_SENDER_ID = config("ARKESEL_SENDER_ID", default="GH-REVENUE")
 

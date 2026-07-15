@@ -31,6 +31,37 @@
 
 ---
 
+## [Continuation] Brevo SMS swap + callback/menu confirmation — 2026-07-15
+
+**Status:** Complete (SMS code); operator must set `BREVO_API_KEY` in env/Vercel
+
+**What was verified/built:**
+- **Arkesel USSD callback:** Confirmed by operator; production path is `POST /ussd/callback/` on `https://ghana-tax-system-hh6f.vercel.app/ussd/callback/`. Capture endpoint also proxies to the state machine as a safety net.
+- **USSD menu:** Confirmed accurate by operator (Register / Check TIN / Pay Assessment / Help).
+- **SMS provider:** Replaced Arkesel-first SMS with **Brevo transactional SMS** (`BrevoSMSProvider`). Priority: Brevo → Arkesel (legacy) → Africa's Talking (legacy) → Stub.
+- Added generic `NotificationService.send_sms()` used by payment receipts (previously called a missing method).
+
+**Files created/modified:**
+- `backend/apps/notifications/providers/brevo.py` — new provider (`POST /v3/transactionalSMS/send`)
+- `backend/apps/notifications/services.py` — prefer Brevo; `send_sms` helper
+- `backend/core/settings.py` — `BREVO_API_KEY`, `BREVO_SMS_API_KEY`, `BREVO_SMS_SENDER`
+- `backend/.env.example` — Brevo vars documented
+- `backend/tests/test_brevo_sms.py` — provider selection + payload unit tests
+
+**Env to set (local + Vercel):**
+```
+BREVO_API_KEY=<your Brevo API key>
+BREVO_SMS_SENDER=GH-REVENUE
+```
+Sender must be approved in Brevo for Ghana SMS where required.
+
+**Tests:** `pytest tests/test_brevo_sms.py` (unit; mock HTTP). Full suite not re-run in this step.
+
+**Open:**
+- Until `BREVO_API_KEY` is set, runtime still uses StubSMSProvider (OTP-deferred “check your SMS” will not deliver).
+
+---
+
 ## [Continuation / Section 1+2] Arkesel userData verification + OTP deferral — 2026-07-15
 
 **Status:** Complete
