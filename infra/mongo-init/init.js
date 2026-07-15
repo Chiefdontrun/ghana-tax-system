@@ -39,4 +39,23 @@ db.ussd_sessions.createIndex(
   { expireAfterSeconds: 1800, name: "session_ttl" }
 );
 
+// ─── tax_rate_schedules ─────────────────────────────────────────────────────
+db.createCollection("tax_rate_schedules");
+db.tax_rate_schedules.createIndex(
+  { tax_category: 1, business_type: 1, region: 1, district: 1, effective_year: 1, is_active: 1 },
+  { name: "tax_schedule_resolution_idx" }
+);
+
+// ─── tax_assessments ───────────────────────────────────────────────────────
+db.createCollection("tax_assessments");
+db.tax_assessments.createIndex(
+  { business_id: 1, tax_category: 1, period_label: 1 },
+  { name: "tax_assessment_lookup_idx" }
+);
+
+// ─── tax_payments ──────────────────────────────────────────────────────────
+db.createCollection("tax_payments");
+db.tax_payments.createIndex({ assessment_id: 1 }, { name: "assessment_payment_idx" });
+db.tax_payments.createIndex({ provider_reference: 1 }, { name: "provider_reference_idx" });
+
 print("ghana_tax_db: all collections and indexes created successfully.");

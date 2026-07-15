@@ -31,6 +31,34 @@
 
 ---
 
+### [PHASE A1] — Tax collections and repository foundation
+
+**Date:** 2026-07-15
+**Agent:** Phase A1 Agent
+**Status:** ✅ Complete
+
+**Files Created:**
+
+- `backend/apps/tax/__init__.py` — package marker for the new tax app
+- `backend/apps/tax/repository.py` — repositories for tax rate schedules, assessments, and payments
+- `backend/apps/tax/services.py` — initial service scaffold for schedule resolution
+- `backend/apps/tax/views.py` — lightweight health view for the new app
+- `backend/apps/tax/urls.py` — tax API route wiring
+- `backend/tests/test_tax.py` — repository-level tests for schedule, assessment, and payment storage
+
+**Files Modified:**
+
+- `backend/core/utils/mongo.py` — added collection constants for tax_rate_schedules, tax_assessments, and tax_payments
+- `backend/core/settings.py` — registered the new `apps.tax` module
+- `backend/core/urls.py` — mounted the tax routes at `/api/tax/`
+- `infra/mongo-init/init.js` — added Mongo indexes for tax schedule resolution, assessment lookups, and payment reconciliation
+
+**Notes:**
+
+- All money values are stored in pesewas as integers to avoid floating-point rounding issues, matching the spec’s recommendation.
+- The initial service layer is intentionally lightweight and leaves the full assessment engine for later phases.
+- Local verification showed the backend import and repository wiring are in place; full Mongo-backed pytest execution is currently blocked by the absence of a reachable MongoDB instance in this environment.
+
 ### [PHASE 12] — Security Hardening & Performance Tuning
 
 **Date:** 2026-03-05

@@ -24,6 +24,9 @@ ADMINS = "admins"
 AUDIT_LOGS = "audit_logs"
 USSD_SESSIONS = "ussd_sessions"
 OTP_VERIFICATIONS = "otp_verifications"
+TAX_RATE_SCHEDULES = "tax_rate_schedules"
+TAX_ASSESSMENTS = "tax_assessments"
+TAX_PAYMENTS = "tax_payments"
 
 # ── Singleton holders ─────────────────────────────────────────────────────────
 _client: Optional[MongoClient] = None
