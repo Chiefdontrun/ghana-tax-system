@@ -44,3 +44,11 @@ class StubPaymentProvider(PaymentProvider):
             provider_reference=provider_reference,
             raw_response={"mock": True, "message": "Stub response"}
         )
+
+    def submit_otp(self, provider_reference: str, otp: str) -> ChargeResult:
+        logger.info(f"StubPaymentProvider: Submitted OTP {otp} for reference {provider_reference}")
+        return ChargeResult(
+            status="SUCCESS",
+            provider_reference=provider_reference,
+            raw_response={"mock_otp_submission": True}
+        )

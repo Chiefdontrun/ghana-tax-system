@@ -3,7 +3,7 @@ Tax repositories for tax rate schedules, assessments, and payments.
 """
 
 import logging
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from typing import Optional
 
 from pymongo import DESCENDING
@@ -52,6 +52,11 @@ class TaxAssessmentRepository:
     def find_by_id(self, assessment_id: str) -> Optional[dict]:
         return self._col().find_one({"assessment_id": assessment_id}, {"_id": 0})
 
+    def update(self, assessment_id: str, updates: dict) -> Optional[dict]:
+        updates["updated_at"] = datetime.now(timezone.utc)
+        self._col().update_one({"assessment_id": assessment_id}, {"$set": updates})
+        return self.find_by_id(assessment_id)
+
     def list_for_trader(self, trader_id: str) -> list[dict]:
         return list(
             self._col()
@@ -85,6 +90,14 @@ class TaxPaymentRepository:
         updates["updated_at"] = datetime.now(timezone.utc)
         self._col().update_one({"payment_id": payment_id}, {"$set": updates})
         return self.find_by_id(payment_id)
+
+    def find_pending_older_than(self, minutes: int) -> list[dict]:
+        threshold = datetime.now(timezone.utc) - timedelta(minutes=minutes)
+        cursor = self._col().find({
+            "status": "PENDING_AUTHORIZATION",
+            "created_at": {"$lt": threshold}
+        }, {"_id": 0})
+        return list(cursor)
 
 class TaxAssessmentExceptionRepository:
     """CRUD for tax_assessment_exceptions."""

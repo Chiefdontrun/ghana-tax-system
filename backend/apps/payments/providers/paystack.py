@@ -95,26 +95,42 @@ class PaystackMoMoProvider(PaymentProvider):
         paystack_status = data.get("status")
         provider_reference = data.get("reference")
 
-        # In a MoMo charge, Paystack usually returns "pay_offline" or "send_otp" depending on network,
-        # but the transaction itself has a status like "pending" or "pay_offline".
-        # If it requires user to approve on their device (standard for MTN/Telecel):
-        if paystack_status in ["pay_offline", "pending", "send_otp"]:
-            return ChargeResult(
-                status="PENDING_AUTHORIZATION",
-                provider_reference=provider_reference,
-                raw_response=raw_data
-            )
-        elif paystack_status == "success":
+        # Explicit status mapping
+        if paystack_status == "success":
             return ChargeResult(
                 status="SUCCESS",
                 provider_reference=provider_reference,
-                raw_response=raw_data
+                raw_response=raw_data,
+                requires_otp=False
             )
-        else:
+        elif paystack_status == "send_otp":
+            return ChargeResult(
+                status="PENDING_AUTHORIZATION",
+                provider_reference=provider_reference,
+                raw_response=raw_data,
+                requires_otp=True,
+                display_text=data.get("display_text") or data.get("message") or "Please enter the OTP sent to your phone."
+            )
+        elif paystack_status in ["pay_offline", "pending"]:
+            return ChargeResult(
+                status="PENDING_AUTHORIZATION",
+                provider_reference=provider_reference,
+                raw_response=raw_data,
+                requires_otp=False
+            )
+        elif paystack_status in ["failed", "abandoned", "reversed"]:
             return ChargeResult(
                 status="FAILED",
                 provider_reference=provider_reference,
                 failure_reason=data.get("message", "Transaction failed."),
+                raw_response=raw_data
+            )
+        else:
+            # Fallback for unrecognized status
+            logger.warning("Unrecognized Paystack status during initiate_charge: %s", paystack_status)
+            return ChargeResult(
+                status="PENDING_AUTHORIZATION",
+                provider_reference=provider_reference,
                 raw_response=raw_data
             )
 
@@ -159,5 +175,61 @@ class PaystackMoMoProvider(PaymentProvider):
         return TransactionStatus(
             status=status,
             provider_reference=provider_reference,
-            raw_response=raw_data
+            raw_response=raw_data,
+            requires_otp=(paystack_status == "send_otp"),
+            display_text=data.get("display_text") or data.get("message")
+        )
+
+    def submit_otp(self, provider_reference: str, otp: str) -> ChargeResult:
+        payload = {
+            "otp": otp,
+            "reference": provider_reference
+        }
+
+        try:
+            response = requests.post(
+                f"{self.base_url}/charge/submit_otp",
+                json=payload,
+                headers=self.headers,
+                timeout=15
+            )
+            raw_data = response.json()
+        except requests.RequestException as e:
+            logger.error("Paystack network failure during submit_otp: %s", e)
+            return ChargeResult(
+                status="FAILED",
+                provider_reference=provider_reference,
+                failure_reason="Network failure communicating with payment provider."
+            )
+        except ValueError:
+            logger.error("Paystack returned invalid JSON during submit_otp: %s", response.text)
+            return ChargeResult(
+                status="FAILED",
+                provider_reference=provider_reference,
+                failure_reason="Invalid response from payment provider."
+            )
+
+        if not raw_data.get("status"):
+            return ChargeResult(
+                status="FAILED",
+                provider_reference=provider_reference,
+                failure_reason=raw_data.get("message", "OTP submission failed."),
+                raw_response=raw_data
+            )
+
+        data = raw_data.get("data", {})
+        paystack_status = data.get("status")
+
+        if paystack_status == "success":
+            status_out = "SUCCESS"
+        elif paystack_status in ["failed", "abandoned", "reversed"]:
+            status_out = "FAILED"
+        else:
+            status_out = "PENDING_AUTHORIZATION"
+
+        return ChargeResult(
+            status=status_out,
+            provider_reference=provider_reference,
+            raw_response=raw_data,
+            failure_reason=data.get("message") if status_out == "FAILED" else None
         )

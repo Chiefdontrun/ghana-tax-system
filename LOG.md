@@ -856,3 +856,13 @@ _Frontend (`frontend/`):_
 - Executed `pytest backend/tests/test_payment_providers.py`.
 - `test_paystack_live_sandbox` PASSED. 
 - All 5/5 payment provider tests are now fully passing.
+
+## Step C3 — Webhook confirmation, OTP-relay handling, and fallback poller
+- Enhanced `TransactionStatus` and `ChargeResult` with `requires_otp` and `display_text`.
+- Extended `PaymentProvider` interface with `submit_otp()`.
+- Implemented `PaystackMoMoProvider.submit_otp()` explicitly mapping Paystack's status outputs (e.g., `send_otp` → `requires_otp=True`).
+- Added robust race-condition protection in `initiate_payment` by generating and storing `provider_reference=payment_id` prior to HTTP execution.
+- Added `POST /api/tax/payments/<payment_id>/submit-otp/` view and service logic.
+- Built a highly secure `POST /api/tax/payments/webhook/` accepting generic Paystack events, verifying them cryptographically using `HMAC-SHA512`, and routing to idempotent completion logics.
+- Implemented `_finalize_successful_payment` enforcing proper business rules: deducting assessment due amounts, capping overpayments (calculating and dumping the `overpaid_excess` in `AuditLog`), sending an SMS pseudo-receipt, and ensuring idempotent success.
+- Established `check_pending_payments.py` Django command as a background safety net, validating and finalizing all lingering `PENDING_AUTHORIZATION` payments older than 5 minutes.

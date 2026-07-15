@@ -13,9 +13,11 @@ class ChargeResult:
       - SUCCESS: Successfully authorized immediately (rare for MoMo).
     """
     status: str
-    provider_reference: Optional[str]
+    provider_reference: Optional[str] = None
     failure_reason: Optional[str] = None
     raw_response: Optional[dict] = None
+    requires_otp: bool = False
+    display_text: Optional[str] = None
 
 
 @dataclass
@@ -30,6 +32,8 @@ class TransactionStatus:
     status: str
     provider_reference: str
     raw_response: Optional[dict] = None
+    requires_otp: bool = False
+    display_text: Optional[str] = None
 
 
 class PaymentProvider(ABC):
@@ -71,5 +75,12 @@ class PaymentProvider(ABC):
             
         Returns:
             TransactionStatus indicating whether it succeeded, failed, or is still pending.
+        """
+        pass
+
+    @abstractmethod
+    def submit_otp(self, provider_reference: str, otp: str) -> ChargeResult:
+        """
+        Submit an OTP for a transaction that is in a requires_otp state.
         """
         pass
