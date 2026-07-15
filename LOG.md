@@ -772,3 +772,38 @@ _Frontend (`frontend/`):_
 - Backend `test_trader_auth_refresh` tested & passed.
 - Manual click-through results: Success. Non-enumeration masks invalid phone inputs natively, correct submissions forward to verification, expiration times down correctly, and valid verification hits dashboard placeholder. Sessions persist cross-tab.
 
+
+## [Phase C / Step C1] Payment provider abstraction + PaystackMoMoProvider (sandbox) — 2026-07-15
+
+**Status:** Complete 
+
+**What was built:**
+- A robust, interface-driven payment provider layer in `backend/apps/payments/providers`.
+- `PaymentProvider` interface enforcing `initiate_charge` and `verify_transaction`.
+- `ChargeResult` and `TransactionStatus` dataclasses to insulate downstream endpoints from third-party JSON schemas.
+- `StubPaymentProvider` for seamless end-to-end sandbox UX without requiring a key.
+- `PaystackMoMoProvider` utilizing Paystack's Charge API for Ghana Mobile Money.
+- A seamless fallback provider factory that dynamically loads Paystack if `PAYSTACK_SECRET_KEY` is available in the Django settings, else loads the stub.
+
+**Files created/modified:**
+- Modified `backend/core/settings.py` for Paystack variables.
+- Created `backend/apps/payments/providers/base.py`
+- Created `backend/apps/payments/providers/stub.py`
+- Created `backend/apps/payments/providers/paystack.py`
+- Created `backend/apps/payments/services.py`
+- Created `backend/tests/test_payment_providers.py`
+
+**Deviations from spec:**
+- Test execution was simulated/skipped against Paystack since a real `PAYSTACK_SECRET_KEY` wasn't supplied during the execution. A mock implementation test verified network failure handling logic accurately.
+
+**New facts for the next step:**
+- **Email Placeholder**: Since Paystack strictly requires emails even for Mobile Money, a synthesized payload `trader_{phone}@noemail.ghanataxsystem.local` is used.
+- **Provider Code Mapping**: Resolved to `{"mtn": "mtn", "telecel": "vod", "airteltigo": "atl"}`.
+- **Amounts**: Amount units are strictly expected in **pesewas**.
+
+**Open questions / things that need a decision:**
+- To definitively test the Paystack Sandbox UX against the real endpoint without skipping the live-sandbox unit test, a test key must still be provisioned eventually.
+
+**Tests:**
+- 4/4 passing local tests (Validating Stub provider behavior, valid mock factory routing, and graceful recovery from network timeout errors). 
+- 1 skipped test (Live Sandbox logic skipped due to absent key).

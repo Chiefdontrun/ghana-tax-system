@@ -158,6 +158,10 @@ RESEND_API_KEY = config("RESEND_API_KEY", default="")
 # ─── Africa's Talking ─────────────────────────────────────────────────────────
 AT_API_KEY = config("AT_API_KEY", default="")
 AT_USERNAME = config("AT_USERNAME", default="")
+
+# Paystack API
+PAYSTACK_SECRET_KEY = config("PAYSTACK_SECRET_KEY", default="")
+PAYSTACK_BASE_URL = config("PAYSTACK_BASE_URL", default="https://api.paystack.co")
 AT_SENDER_ID = config("AT_SENDER_ID", default="GH-REVENUE")
 
 # ─── Seed data ────────────────────────────────────────────────────────────────
