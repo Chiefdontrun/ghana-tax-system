@@ -78,6 +78,14 @@ class TaxPaymentRepository:
             self._col().find({"assessment_id": assessment_id}, {"_id": 0}).sort("created_at", DESCENDING)
         )
 
+    def find_by_id(self, payment_id: str) -> Optional[dict]:
+        return self._col().find_one({"payment_id": payment_id}, {"_id": 0})
+
+    def update(self, payment_id: str, updates: dict) -> Optional[dict]:
+        updates["updated_at"] = datetime.now(timezone.utc)
+        self._col().update_one({"payment_id": payment_id}, {"$set": updates})
+        return self.find_by_id(payment_id)
+
 class TaxAssessmentExceptionRepository:
     """CRUD for tax_assessment_exceptions."""
 

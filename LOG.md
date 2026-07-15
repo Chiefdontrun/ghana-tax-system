@@ -807,3 +807,39 @@ _Frontend (`frontend/`):_
 **Tests:**
 - 4/4 passing local tests (Validating Stub provider behavior, valid mock factory routing, and graceful recovery from network timeout errors). 
 - 1 skipped test (Live Sandbox logic skipped due to absent key).
+
+## [Phase C / Step C2] Payment initiation endpoint — 2026-07-15
+
+**Status:** Complete
+
+**What was built:**
+- Added `find_by_id` and `update` methods to `TaxPaymentRepository` to fetch and update `tax_payments` documents properly during the payment cycle.
+- Built a `PaymentService` class in `backend/apps/payments/services.py` that fully implements `initiate_payment` and `get_payment_status`.
+    - Handles strict ownership rules (`trader_id` checking).
+    - Ensures idempotency by blocking duplicates initiated within 3 minutes for the same assessment.
+    - Prevents overpayments (total payments cannot exceed `amount_due`).
+    - Writes `PAYMENT_INITIATED` and `PAYMENT_INITIATION_FAILED` to the audit log seamlessly.
+    - Abstracted core logic independently from DRF so it can be invoked by HTTP APIs and USSD flows alike.
+- Added DRF endpoints to `backend/apps/payments/views.py`:
+    - `POST /api/tax/payments/initiate/`: Returns `HTTP_201_CREATED` or relevant 400/404 errors. Extracts `trader_id` reliably via the trader JWT token.
+    - `GET /api/tax/payments/<payment_id>/status/`: Simple status polling endpoint for a single payment.
+- Updated routing in `backend/apps/payments/urls.py` and `backend/core/urls.py`.
+
+**Files created/modified:**
+- Modified `backend/apps/tax/repository.py`
+- Modified `backend/apps/payments/services.py`
+- Created `backend/apps/payments/serializers.py`
+- Created `backend/apps/payments/views.py`
+- Created `backend/apps/payments/urls.py`
+- Modified `backend/core/urls.py`
+- Created `backend/tests/test_payment_api.py`
+
+**Deviations from spec:**
+- Refactored request.user checking to handle standard DRF dictionaries injected by the JWT layer (`user_id`).
+
+**New facts for the next step:**
+- Webhook endpoints or status synchronization steps will now interact with `payment_id` to update row statuses dynamically.
+
+**Tests:**
+- 9/9 passing local tests covering success path, ownership boundary checks, strict idempotency enforcement, overpayment rejection, and seamless failure recovery.
+
