@@ -31,6 +31,58 @@
 
 ---
 
+## [Continuation / Section 1+2] Arkesel userData verification + OTP deferral — 2026-07-15
+
+**Status:** Complete
+
+**What was verified/built:**
+- **Section 1 — Possibility A confirmed live.** Arkesel does **not** accumulate `userData` across steps. Follow-up requests send only the latest keypress. `newSession` is the only reliable first-dial signal (initial `userData` is the dialed shortcode `*928*309#`, not empty).
+- Fixed adapter + state machine so first dial no longer mis-parses `*928*309#` as menu input `309#` (previous bug showed "Invalid option" on some paths while still containing "Register Business", so tests could false-pass).
+- Capture endpoint improved to append multi-request JSONL and return Arkesel-compatible `continueSession` JSON so multi-step live capture works.
+- Regression tests + fixture file from verbatim live payloads.
+- **Section 2 — USSD OTP timeout:** when Paystack returns `requires_otp`, the USSD flow now **END**s immediately with a clear GHS amount + SMS/prompt instructions instead of leaving the trader in `STATE_PAY_ASSESSMENT_OTP` until telco timeout. Audit actions: `PAYMENT_INITIATED_OTP_DEFERRED` (OTP case) and `PAYMENT_INITIATED` (prompt/pending case). Legacy OTP handler kept for in-flight sessions only.
+
+**Captured payloads / raw evidence (verbatim live, session `17841474871496131`):**
+```
+# Request 1 (initial dial)
+{"sessionID":"17841474871496131","userID":"3NV5OX7PZK_HICOs","newSession":true,"msisdn":"233231804643","userData":"*928*309#","network":"MTN"}
+
+# Request 2 (follow-up after selecting 1)
+{"sessionID":"17841474871496131","userID":"3NV5OX7PZK_HICOs","newSession":false,"msisdn":"233231804643","userData":"1","network":"MTN"}
+```
+
+**Files created/modified:**
+- `backend/apps/ussd/capture.py` — multi-request JSONL capture + Arkesel JSON CON responses
+- `backend/apps/ussd/views.py` — `adapt_gateway_input()`; Arkesel blanks text on `newSession`; `input_mode` passed through
+- `backend/apps/ussd/state_machine.py` — `_parse_input(mode)`; no `*` split for Arkesel; OTP deferred END + audit
+- `backend/tests/fixtures/arkesel_live_session.json` — verbatim live fixtures
+- `backend/tests/test_ussd_arkesel.py` — adapter + live-fixture regression tests
+- `backend/core/settings.py` — `ARKESEL_SMS_API_KEY`, `ARKESEL_SENDER_ID`, `AT_SENDER_ID`
+- `backend/.env.example` — Arkesel SMS vars; AT marked legacy SMS fallback
+
+**Deviations from this spec:**
+- Section 2 chose **proactive END + SMS confirmation** over in-session OTP collection (recommended by the spec for telco timeout reasons).
+- Full pytest suite for USSD could not run in this environment: `conftest.py` requires local MongoDB on `localhost:27017` (not running). Adapter logic verified via direct Python asserts; full callback path verified via live `runserver` POST of the captured request pair (menu → Register name step).
+
+**New facts discovered:**
+- Arkesel `sessionID` is a long numeric string (e.g. `17841474871496131`); same ID across the session — session store key format `ussd:session:{id}` is fine.
+- Arkesel POSTs JSON with `User-Agent: ReactorNetty/1.0.39` from IP `139.162.225.157`.
+- `network` field is present on every request (`MTN` observed) — useful later for auto-selecting MoMo network.
+- Local Redis was unavailable during E2E; Mongo session fallback worked after Atlas connect.
+- Runtime was still using `StubSMSProvider` because `ARKESEL_SMS_API_KEY` was missing from settings/.env (settings now expose the var; key still must be set for real SMS).
+
+**Open questions / product decisions:**
+- Point Arkesel dashboard callback **back** from capture URL to production `/ussd/callback/` (or tunnel → `/ussd/callback/`) once capture is done — do not leave production on `/ussd/arkesel-capture/`.
+- Operator must set `ARKESEL_SMS_API_KEY` in local/Vercel env to leave Stub SMS.
+- Full manual dial-through of Register / Check TIN / Pay Assessment on the fixed callback still recommended on the live shortcode.
+
+**Tests:**
+- Direct adapter/unit asserts: **pass** (initial text cleared; follow-up `userData=1`; AT history last-segment still works).
+- Live server E2E with fixture sequence: **pass** — Req1 clean main menu (no "Invalid"); Req2 "Step 1 of 5 Enter your full name".
+- `pytest tests/test_ussd_arkesel.py`: **8 errors** (setup) — no local MongoDB; not assertion failures.
+
+---
+
 ## 14. [Phase A / Step A3] Admin API surface for rate schedules & assessments — 2026-07-15
 
 **Status:** Complete

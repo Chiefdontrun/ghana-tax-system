@@ -156,13 +156,19 @@ DEFAULT_FROM_EMAIL = config(
 RESEND_API_KEY = config("RESEND_API_KEY", default="")
 
 # ─── Africa's Talking ─────────────────────────────────────────────────────────
+# Africa's Talking — legacy SMS fallback (prefer Arkesel when configured)
 AT_API_KEY = config("AT_API_KEY", default="")
 AT_USERNAME = config("AT_USERNAME", default="")
+AT_SENDER_ID = config("AT_SENDER_ID", default="GH-REVENUE")
+
+# Arkesel SMS (preferred when ARKESEL_SMS_API_KEY is set)
+ARKESEL_SMS_API_KEY = config("ARKESEL_SMS_API_KEY", default="")
+ARKESEL_SENDER_ID = config("ARKESEL_SENDER_ID", default="GH-REVENUE")
 
 # Paystack API
 PAYSTACK_SECRET_KEY = config("PAYSTACK_SECRET_KEY", default="")
+PAYSTACK_PUBLIC_KEY = config("PAYSTACK_PUBLIC_KEY", default="")
 PAYSTACK_BASE_URL = config("PAYSTACK_BASE_URL", default="https://api.paystack.co")
-AT_SENDER_ID = config("AT_SENDER_ID", default="GH-REVENUE")
 
 # ─── Seed data ────────────────────────────────────────────────────────────────
 SEED_ADMIN_EMAIL = config("SEED_ADMIN_EMAIL", default="sysadmin@demo.gov.gh")
