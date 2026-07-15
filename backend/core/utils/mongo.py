@@ -27,6 +27,7 @@ OTP_VERIFICATIONS = "otp_verifications"
 TAX_RATE_SCHEDULES = "tax_rate_schedules"
 TAX_ASSESSMENTS = "tax_assessments"
 TAX_PAYMENTS = "tax_payments"
+TAX_ASSESSMENT_EXCEPTIONS = "tax_assessment_exceptions"
 
 # ── Singleton holders ─────────────────────────────────────────────────────────
 _client: Optional[MongoClient] = None

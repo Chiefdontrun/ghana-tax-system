@@ -12,6 +12,7 @@ from apps.tax.repository import (
     TaxAssessmentRepository,
     TaxPaymentRepository,
     TaxRateScheduleRepository,
+    TaxAssessmentExceptionRepository,
 )
 from apps.registration.repository import BusinessRepository, TraderRepository
 from apps.audit.repository import AuditRepository
@@ -27,6 +28,7 @@ class TaxService:
         self.schedule_repo = TaxRateScheduleRepository()
         self.assessment_repo = TaxAssessmentRepository()
         self.payment_repo = TaxPaymentRepository()
+        self.exception_repo = TaxAssessmentExceptionRepository()
         self.business_repo = BusinessRepository()
         self.trader_repo = TraderRepository()
         self.audit_repo = AuditRepository()
@@ -127,6 +129,8 @@ class TaxService:
         period_label: str,
         channel_generated: str,
         declared_turnover_pesewas: Optional[int] = None,
+        audit_log: bool = True,
+        actor_id: str = None,
     ) -> dict:
         """
         Generate an assessment for a business.
@@ -201,25 +205,62 @@ class TaxService:
         
         created_doc = self.assessment_repo.create(assessment_doc)
 
-        actor_id = "system" if channel_generated == "auto_on_registration" else "admin"
+        if actor_id is None:
+            actor_id = "system" if channel_generated == "auto_on_registration" else "admin"
 
-        self.audit_repo.log({
-            "action": "ASSESSMENT_GENERATED",
-            "entity_type": "tax_assessment",
-            "entity_id": assessment_id,
-            "actor_type": "system" if actor_id == "system" else "admin",
-            "actor_id": actor_id,
-            "channel": channel_generated,
-            "details": {
-                "business_id": business_id,
-                "amount_due": amount_due,
-                "period_label": period_label
-            }
-        })
+        if audit_log:
+            self.audit_repo.log({
+                "action": "ASSESSMENT_GENERATED",
+                "entity_type": "tax_assessment",
+                "entity_id": assessment_id,
+                "actor_type": "system" if actor_id == "system" else "admin",
+                "actor_id": actor_id,
+                "channel": channel_generated,
+                "details": {
+                    "business_id": business_id,
+                    "amount_due": amount_due,
+                    "period_label": period_label
+                }
+            })
 
         return created_doc
 
-    def generate_annual_assessments_batch(self, year: int) -> dict:
+    def log_assessment_exception(
+        self, business_id: str, tax_category: str, period_label: str, exception_type: str
+    ) -> None:
+        """Durably log an exception for unresolved assessment generation."""
+        existing = self.exception_repo._col().find_one({
+            "business_id": business_id,
+            "tax_category": tax_category,
+            "period_label": period_label,
+            "exception_type": exception_type,
+            "status": "OPEN"
+        }, {"_id": 0})
+        
+        if existing:
+            return
+
+        business = self.business_repo._col().find_one({"business_id": business_id})
+        trader_id = business["owner_trader_id"]
+        trader = self.trader_repo.find_by_id(trader_id)
+        
+        doc = {
+            "exception_id": str(uuid.uuid4()),
+            "business_id": business_id,
+            "trader_id": trader_id,
+            "tax_category": tax_category,
+            "period_label": period_label,
+            "exception_type": exception_type,
+            "business_type": business.get("business_type"),
+            "region": trader.get("region"),
+            "district": trader.get("district"),
+            "status": "OPEN",
+            "resolved_by": None,
+            "resolved_at": None,
+        }
+        self.exception_repo.create(doc)
+
+    def generate_annual_assessments_batch(self, year: int, admin_id: str = "admin") -> dict:
         """
         Batch generate assessments for all active traders' businesses for a given year.
         Returns a summary dict.
@@ -264,17 +305,35 @@ class TaxService:
                         business_id=business["business_id"],
                         tax_category="BOP",
                         period_label=str(year),
-                        channel_generated="admin_batch"
+                        channel_generated="admin_batch",
+                        audit_log=False,
+                        actor_id=admin_id,
                     )
                     created += 1
                 except TurnoverRequiredError:
+                    self.log_assessment_exception(business["business_id"], "BOP", str(year), "NEEDS_TURNOVER")
                     needs_turnover.append(business["business_id"])
                 except RateScheduleNotFoundError:
+                    self.log_assessment_exception(business["business_id"], "BOP", str(year), "MISSING_SCHEDULE")
                     missing_schedule.append((business["business_id"], business.get("business_type"), trader.get("district")))
                 except Exception as e:
                     logger.error(f"Error generating assessment for business {business['business_id']}: {e}")
 
             skip += limit
+
+        self.audit_repo.log({
+            "action": "ASSESSMENT_GENERATED",
+            "entity_type": "batch",
+            "entity_id": str(year),
+            "actor_type": "admin",
+            "actor_id": admin_id,
+            "channel": "admin_batch",
+            "details": {
+                "created_count": created,
+                "skipped_count": skipped_existing,
+                "year": year
+            }
+        })
 
         return {
             "created": created,

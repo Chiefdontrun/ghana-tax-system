@@ -13,6 +13,7 @@ from core.utils.mongo import (
     TAX_RATE_SCHEDULES,
     TAX_ASSESSMENTS,
     TAX_PAYMENTS,
+    TAX_ASSESSMENT_EXCEPTIONS,
 )
 
 logger = logging.getLogger(__name__)
@@ -76,3 +77,48 @@ class TaxPaymentRepository:
         return list(
             self._col().find({"assessment_id": assessment_id}, {"_id": 0}).sort("created_at", DESCENDING)
         )
+
+class TaxAssessmentExceptionRepository:
+    """CRUD for tax_assessment_exceptions."""
+
+    def _col(self):
+        return get_collection(TAX_ASSESSMENT_EXCEPTIONS)
+
+    def create(self, exception_data: dict) -> dict:
+        now = datetime.now(timezone.utc)
+        doc = {**exception_data, "created_at": now}
+        self._col().insert_one(doc)
+        doc.pop("_id", None)
+        return doc
+
+    def find_by_id(self, exception_id: str) -> Optional[dict]:
+        return self._col().find_one({"exception_id": exception_id}, {"_id": 0})
+
+    def update(self, exception_id: str, updates: dict) -> Optional[dict]:
+        self._col().update_one({"exception_id": exception_id}, {"$set": updates})
+        return self.find_by_id(exception_id)
+
+    def list_with_filters(
+        self,
+        filters: dict,
+        skip: int = 0,
+        limit: int = 20,
+    ) -> tuple[list[dict], int]:
+        query = {}
+        if filters.get("exception_type"):
+            query["exception_type"] = filters["exception_type"]
+        if filters.get("status"):
+            query["status"] = filters["status"]
+        if filters.get("business_type"):
+            query["business_type"] = filters["business_type"]
+        if filters.get("district"):
+            query["district"] = {"$regex": filters["district"], "$options": "i"}
+
+        total = self._col().count_documents(query)
+        cursor = (
+            self._col().find(query, {"_id": 0})
+            .sort("created_at", DESCENDING)
+            .skip(skip)
+            .limit(limit)
+        )
+        return list(cursor), total

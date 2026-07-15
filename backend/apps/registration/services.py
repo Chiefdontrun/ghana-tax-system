@@ -115,6 +115,11 @@ class RegistrationService:
                 channel_generated="auto_on_registration"
             )
         except Exception as exc:
+            from apps.tax.exceptions import TurnoverRequiredError, RateScheduleNotFoundError
+            if isinstance(exc, TurnoverRequiredError):
+                TaxService().log_assessment_exception(business_doc["business_id"], "BOP", str(datetime.now(timezone.utc).year), "NEEDS_TURNOVER")
+            elif isinstance(exc, RateScheduleNotFoundError):
+                TaxService().log_assessment_exception(business_doc["business_id"], "BOP", str(datetime.now(timezone.utc).year), "MISSING_SCHEDULE")
             logger.warning("Failed to auto-generate assessment for %s: %s", business_doc["business_id"], exc)
 
         # ── 5. Audit log ──────────────────────────────────────────────────────
@@ -227,6 +232,11 @@ class RegistrationService:
                 channel_generated="auto_on_registration"
             )
         except Exception as exc:
+            from apps.tax.exceptions import TurnoverRequiredError, RateScheduleNotFoundError
+            if isinstance(exc, TurnoverRequiredError):
+                TaxService().log_assessment_exception(business_doc["business_id"], "BOP", str(datetime.now(timezone.utc).year), "NEEDS_TURNOVER")
+            elif isinstance(exc, RateScheduleNotFoundError):
+                TaxService().log_assessment_exception(business_doc["business_id"], "BOP", str(datetime.now(timezone.utc).year), "MISSING_SCHEDULE")
             logger.warning("Failed to auto-generate assessment for %s: %s", business_doc["business_id"], exc)
 
         _audit_repo.log({

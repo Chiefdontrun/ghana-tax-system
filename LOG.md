@@ -31,6 +31,45 @@
 
 ---
 
+## 14. [Phase A / Step A3] Admin API surface for rate schedules & assessments — 2026-07-15
+
+**Status:** Complete
+
+**What was built:**
+- Added `TAX_ASSESSMENT_EXCEPTIONS` collection and `TaxAssessmentExceptionRepository` to durably track resolution gaps.
+- Integrated exception creation inside `TaxService.log_assessment_exception`.
+- Modified `generate_annual_assessments_batch` to aggregate exceptions natively and persist them, emitting a single `ASSESSMENT_GENERATED` audit log summary.
+- Wired web and USSD registration hooks to properly track exceptions (`NEEDS_TURNOVER`, `MISSING_SCHEDULE`) inside `tax_assessment_exceptions`.
+- Built comprehensive Admin API endpoints (`backend/apps/tax/views.py`) for managing schedules, viewing paginated assessments, generating batches manually, and resolving queued exceptions.
+- Hardened view layer with DRF permission classes (`IsTaxAdmin`, `IsSysAdmin`).
+
+**Files created/modified:**
+- `backend/core/utils/mongo.py` (Modified mapping)
+- `backend/apps/tax/repository.py` (Added Exception Repository)
+- `backend/apps/tax/services.py` (Exception handling and batch audit logging)
+- `backend/apps/registration/services.py` (Registration hook tracking)
+- `backend/apps/tax/views.py` (Added full view layer)
+- `backend/apps/tax/urls.py` (Added URLs)
+- `backend/tests/test_tax_api.py` (Created exhaustive tests)
+- `backend/tests/conftest.py` (Fixed isolation state leak)
+
+**Deviations from spec:**
+- None.
+
+**New facts for the next step:**
+- `generate_assessment`'s default audit-write can be suppressed for batch calls via the `audit_log=False` boolean.
+- The `generate-batch` endpoint is exclusively `SYS_ADMIN` restricted to protect system throughput.
+- Turnover resolution executes at `/api/tax/assessment-exceptions/<id>/resolve-turnover/` providing the assessment JSON in response payload upon successful resolution.
+- Retry execution for missing schedules executes at `/api/tax/assessment-exceptions/<id>/retry/`.
+
+**Open questions / things that need a decision:**
+- None.
+
+**Tests:**
+- `backend/tests/test_tax_api.py`: 8 API tests created. Total test suite of 17 tests all pass 100%.
+
+---
+
 ## 13. [Phase A / Step A2] Assessment calculation & generation service — 2026-07-15
 
 **Status:** Complete
