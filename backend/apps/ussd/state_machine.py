@@ -107,9 +107,15 @@ def _new_session(msisdn: str) -> dict:
 class USSDStateMachine:
     """
     Processes a single USSD webhook call and returns a plain-text response.
-    Africa's Talking passes the full `text` field as a `*`-delimited history
-    string (e.g., "1*Kofi Mensah*2"). We parse only the LAST segment as the
-    current user input and restore all other state from the session store.
+
+    Gateway input modes:
+      - "africas_talking" (default): `text` is a `*`-delimited history
+        (e.g. "1*Kofi Mensah*2"). Only the LAST segment is the current input.
+        Empty text means first dial.
+      - "arkesel": `text` is already the single current input for this step
+        (Possibility A, live-verified). Empty text means first dial
+        (views.py clears userData when newSession=true). Session step is
+        restored only from USSDSessionStore keyed by sessionID.
     """
 
     def process(
@@ -117,16 +123,14 @@ class USSDStateMachine:
         session_id: str,
         msisdn: str,
         text: str,
+        input_mode: str = "africas_talking",
     ) -> str:
         """
         Main entry point. Returns a string starting with either:
           "CON ..." — expects further input
           "END ..." — terminates the session
         """
-        # Parse the most recent user input from the `*`-delimited history
-        parts = text.split("*") if text else []
-        user_input = parts[-1].strip() if parts else ""
-        is_initial = (text == "" or text is None)
+        user_input, is_initial = self._parse_input(text, input_mode)
 
         # Load or create session
         session = _session_store.get(session_id)
@@ -146,12 +150,36 @@ class USSDStateMachine:
                 "step": current_step,
                 "msisdn": msisdn,
                 "input_length": len(user_input),
+                "input_mode": input_mode,
             },
         })
 
         # Route to the correct handler
         response = self._route(session, session_id, msisdn, user_input, is_initial)
         return response
+
+    @staticmethod
+    def _parse_input(text: str | None, input_mode: str) -> tuple[str, bool]:
+        """
+        Return (user_input, is_initial) for the given gateway mode.
+
+        Arkesel: text is single-step only; empty ⇒ first dial.
+        Africa's Talking: split * history; empty text ⇒ first dial.
+        """
+        if text is None:
+            text = ""
+
+        if input_mode == "arkesel":
+            # Possibility A — do not split; adapter already blanked first dial
+            stripped = text.strip()
+            is_initial = stripped == ""
+            return stripped, is_initial
+
+        # Africa's Talking (and default): accumulating history
+        parts = text.split("*") if text else []
+        user_input = parts[-1].strip() if parts else ""
+        is_initial = text == ""
+        return user_input, is_initial
 
     # ── Router ─────────────────────────────────────────────────────────────────
 
@@ -486,20 +514,92 @@ class USSDStateMachine:
             _session_store.delete(session_id)
             return f"END Payment failed: {e}"
         
+        amount_ghs = amount_pesewas / 100.0
+
         if result.get("requires_otp"):
-            session["collected"]["payment_id"] = result.get("payment_id")
+            # USSD sessions time out well before a trader can reliably receive
+            # and re-enter an SMS OTP. Do not leave the session open in an
+            # OTP-entry state (silent telco drop). End with a clear message;
+            # SMS receipt / web flow remain the source of truth.
+            payment_id = result.get("payment_id")
+            session["collected"]["payment_id"] = payment_id
             session["step"] = STATE_PAY_ASSESSMENT_OTP
+            # Persist briefly for audit correlation, then end the USSD session.
             _session_store.set(session_id, session)
-            msg = result.get("display_text") or "Enter OTP sent to your phone:"
-            return f"CON {msg}"
-        
+            _audit_repo.log({
+                "action": "PAYMENT_INITIATED_OTP_DEFERRED",
+                "entity_type": "tax_payment",
+                "entity_id": payment_id or assessment_id,
+                "actor_type": "trader",
+                "actor_id": trader_id,
+                "channel": "ussd",
+                "details": {
+                    "session_id": session_id,
+                    "assessment_id": assessment_id,
+                    "amount_pesewas": amount_pesewas,
+                    "momo_network": network,
+                    "reason": "ussd_otp_unreliable_session_timeout",
+                    "outcome": "session_ended_pending_confirmation",
+                },
+            })
+            _session_store.delete(session_id)
+            return (
+                f"END Payment request sent for GHS {amount_ghs:.2f}. "
+                "If asked, approve the prompt or enter the OTP via the MoMo "
+                "menu/SMS. Check SMS for confirmation — do not re-dial unless "
+                "you receive no message."
+            )
+
         _session_store.delete(session_id)
-        return "END Please approve the payment prompt on your phone."
+        _audit_repo.log({
+            "action": "PAYMENT_INITIATED",
+            "entity_type": "tax_payment",
+            "entity_id": result.get("payment_id") or assessment_id,
+            "actor_type": "trader",
+            "actor_id": trader_id,
+            "channel": "ussd",
+            "details": {
+                "session_id": session_id,
+                "assessment_id": assessment_id,
+                "amount_pesewas": amount_pesewas,
+                "momo_network": network,
+                "outcome": "prompt_sent_or_pending",
+            },
+        })
+        return (
+            f"END Payment request sent for GHS {amount_ghs:.2f}. "
+            "Approve the prompt on your phone. You will receive an SMS confirmation."
+        )
 
     def _handle_pay_assessment_otp(self, session: dict, session_id: str, msisdn: str, user_input: str) -> str:
+        """
+        Legacy path: OTP entry inside USSD is no longer entered from the
+        network/payment step (see _handle_pay_assessment_network). Kept so
+        any in-flight session that already stored STATE_PAY_ASSESSMENT_OTP
+        still resolves cleanly instead of hanging.
+        """
         payment_id = session["collected"].get("payment_id")
         trader_id = session["collected"]["trader_id"]
-        
+
+        if not user_input or not user_input.strip():
+            _session_store.delete(session_id)
+            _audit_repo.log({
+                "action": "PAYMENT_OTP_SESSION_ABANDONED",
+                "entity_type": "tax_payment",
+                "entity_id": payment_id or "",
+                "actor_type": "trader",
+                "actor_id": trader_id,
+                "channel": "ussd",
+                "details": {
+                    "session_id": session_id,
+                    "outcome": "empty_input_session_ended",
+                },
+            })
+            return (
+                "END Payment was already requested. Check your SMS for "
+                "confirmation or approve any pending MoMo prompt."
+            )
+
         try:
             _payment_service.submit_otp(
                 payment_id=payment_id,
@@ -509,7 +609,7 @@ class USSDStateMachine:
         except PaymentInitiationError as e:
             _session_store.delete(session_id)
             return f"END Payment failed: {e}"
-            
+
         _session_store.delete(session_id)
         return "END Payment submitted. You will receive an SMS confirmation."
 

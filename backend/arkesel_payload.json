@@ -1,18 +1,27 @@
 {
+  "captured_at": "2026-07-15T20:31:35.660668+00:00",
   "method": "POST",
   "headers": {
-    "Content-Length": "142",
+    "Content-Length": "135",
     "Content-Type": "application/json",
     "X-Forwarded-For": "139.162.225.157",
     "X-Forwarded-Proto": "https",
     "X-Forwarded-Port": "443",
-    "Host": "yummy-symbols-joke.loca.lt",
+    "Host": "kind-rice-nail.loca.lt",
     "Accept": "*/*",
     "User-Agent": "ReactorNetty/1.0.39",
-    "X-Forwarded-Host": "yummy-symbols-joke.loca.lt",
+    "X-Forwarded-Host": "kind-rice-nail.loca.lt",
     "Connection": "keep-alive"
   },
   "GET": {},
   "POST": {},
-  "body": "{\"sessionID\":\"17841466151740419\",\"userID\":\"3NV5OX7PZK_HICOs\",\"newSession\":true,\"msisdn\":\"233231804643\",\"userData\":\"*928*309#\",\"network\":\"MTN\"}"
+  "body_raw": "{\"sessionID\":\"17841474871496131\",\"userID\":\"3NV5OX7PZK_HICOs\",\"newSession\":false,\"msisdn\":\"233231804643\",\"userData\":\"1\",\"network\":\"MTN\"}",
+  "body_json": {
+    "sessionID": "17841474871496131",
+    "userID": "3NV5OX7PZK_HICOs",
+    "newSession": false,
+    "msisdn": "233231804643",
+    "userData": "1",
+    "network": "MTN"
+  }
 }

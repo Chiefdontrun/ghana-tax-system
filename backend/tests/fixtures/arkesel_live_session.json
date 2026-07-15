@@ -1,0 +1,25 @@
+{
+  "_comment": "Verbatim live captures from Arkesel shortcode *928*309# on 2026-07-15 via tunnel kind-rice-nail.loca.lt. Same sessionID across both requests.",
+  "request_1_initial_dial": {
+    "sessionID": "17841474871496131",
+    "userID": "3NV5OX7PZK_HICOs",
+    "newSession": true,
+    "msisdn": "233231804643",
+    "userData": "*928*309#",
+    "network": "MTN"
+  },
+  "request_2_follow_up": {
+    "sessionID": "17841474871496131",
+    "userID": "3NV5OX7PZK_HICOs",
+    "newSession": false,
+    "msisdn": "233231804643",
+    "userData": "1",
+    "network": "MTN"
+  },
+  "conclusion": {
+    "possibility": "A",
+    "userData_accumulates": false,
+    "newSession_is_first_dial_signal": true,
+    "follow_up_userData_is_single_input": true
+  }
+}
