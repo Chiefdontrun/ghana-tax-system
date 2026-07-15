@@ -843,3 +843,16 @@ _Frontend (`frontend/`):_
 **Tests:**
 - 9/9 passing local tests covering success path, ownership boundary checks, strict idempotency enforcement, overpayment rejection, and seamless failure recovery.
 
+
+## [Phase C / Step C1] Update — 2026-07-15
+
+**Status:** Completed and Verified
+
+**What was updated:**
+- The skipped `test_paystack_live_sandbox` from Step C1 has now been executed with valid Paystack credentials injected into the `.env` file.
+- Verified that the `PaystackMoMoProvider` successfully communicates with the live Paystack sandbox API, correctly sending the expected payload format (including the synthesized email) and handling the network response appropriately.
+
+**Tests:**
+- Executed `pytest backend/tests/test_payment_providers.py`.
+- `test_paystack_live_sandbox` PASSED. 
+- All 5/5 payment provider tests are now fully passing.
