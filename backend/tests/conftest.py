@@ -78,8 +78,17 @@ def mongo_client(test_db_name, mongo_uri):
     from pymongo import MongoClient
     client = MongoClient(mongo_uri, serverSelectionTimeoutMS=15000)
     yield client
+    # Prefer dropDatabase; Atlas free/shared users may lack dropDatabase —
+    # fall back to deleting all collections so we never leave junk forever.
     try:
         client.drop_database(test_db_name)
+    except Exception:
+        try:
+            db = client[test_db_name]
+            for name in db.list_collection_names():
+                db.drop_collection(name)
+        except Exception:
+            pass
     finally:
         client.close()
 
