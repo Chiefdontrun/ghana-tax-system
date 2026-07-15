@@ -45,8 +45,8 @@ class PaystackMoMoProvider(PaymentProvider):
             )
 
         # We must synthesize an email since Paystack requires it, but we don't track it.
-        # {trader_id}@noemail.ghanataxsystem.local is our standard placeholder.
-        synthesized_email = f"trader_{phone_number}@noemail.ghanataxsystem.local"
+        # {trader_id}@noemail.ghanataxsystem.com is our standard placeholder.
+        synthesized_email = f"trader_{phone_number}@noemail.ghanataxsystem.com"
 
         payload = {
             "email": synthesized_email,
