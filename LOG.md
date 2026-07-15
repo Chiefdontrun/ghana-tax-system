@@ -907,3 +907,39 @@ _Frontend (`frontend/`):_
 - Navigated successfully to trader dashboard. Assessments fetched and properly mapped to outstanding and paid lists. Amounts cleanly formatted to GHS.
 - Clicked "Pay Now" seamlessly forwarding to assessment pay page. Phone number fallback and override test successful. Mocked OTP prompt triggered correctly on Telecel override and successfully pushed via poller to the receipt view!
 - Unit tests (`MyBusinessesView`, mock providers) all explicitly run and passed.
+
+
+## [Phase E] USSD Payment Flow Integration (Arkesel) — 2026-07-15
+
+**Status:** Complete
+
+**What was built:**
+- A robust Arkesel JSON webhook adapter parsing incoming payload formats to map them securely to the existing `USSDStateMachine`.
+- An Arkesel SMS provider utilizing the v2 API for high-delivery message handling.
+- The "Pay Assessment" menu (option 3) inside the USSD state machine, linking directly to the `PaymentService.initiate_payment` method.
+- Refactored `USSDCallbackView` to act as a hybrid controller intercepting JSON Arkesel requests while preserving old Africa's Talking form payloads for seamless test interoperability.
+- A fully integrated PyTest fixture for live Arkesel POST payloads.
+
+**Files created/modified:**
+- Created `backend/tests/test_ussd_arkesel.py`
+- Modified `backend/apps/ussd/views.py`
+- Modified `backend/apps/ussd/state_machine.py`
+- Created `backend/apps/notifications/providers/arkesel.py`
+- Modified `backend/apps/notifications/services.py`
+- Modified `backend/tests/test_ussd.py`
+
+**Deviations from spec:**
+- Rather than maintaining two entirely separate views for AT and Arkesel, `USSDCallbackView` was refactored to elegantly handle both JSON parsing and standard form-encoded requests, ensuring zero legacy test breakage. 
+- USSD `text` versus `userData`: Arkesel isolates the current step's input in `userData`, while Africa's Talking concatenates the whole history into `text`. The `USSDStateMachine` was inherently built to split the AT history and pull just the last segment, which flawlessly handles Arkesel's single-input `userData` as well.
+- The main menu "Help" option shifted to option 4 to make room for "Pay Assessment" at 3. The associated PyTest legacy checks were updated.
+
+**New facts for the next step:**
+- Arkesel is now fully loaded as the SMS Provider fallback if `ARKESEL_SMS_API_KEY` is present.
+- USSD states `STATE_PAY_ASSESSMENT_SELECT`, `STATE_PAY_ASSESSMENT_NETWORK`, and `STATE_PAY_ASSESSMENT_OTP` are now governing the webhook transaction flow.
+
+**Open questions / things that need a decision:**
+- The system gracefully handles USSD OTP triggers by transitioning into `STATE_PAY_ASSESSMENT_OTP`, however USSD timeouts can be strict. If a user receives the OTP SMS extremely slowly, they might time out of the USSD session.
+
+**Tests:** manual click-through results
+- Arkesel mock payload tests successfully execute the initial menu and step 1 transitions.
+- All 15 legacy USSD tests (`test_ussd.py`) pass safely through the hybrid adapter.

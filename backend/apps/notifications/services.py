@@ -13,12 +13,16 @@ logger = logging.getLogger(__name__)
 
 def _build_provider():
     """Return the appropriate SMS provider based on environment config."""
+    if getattr(settings, "ARKESEL_SMS_API_KEY", ""):
+        from apps.notifications.providers.arkesel import ArkeselSMSProvider
+        logger.info("NotificationService: using ArkeselSMSProvider")
+        return ArkeselSMSProvider()
     if getattr(settings, "AT_API_KEY", "") and getattr(settings, "AT_USERNAME", ""):
         from apps.notifications.providers.africas_talking import AfricasTalkingProvider
         logger.info("NotificationService: using AfricasTalkingProvider")
         return AfricasTalkingProvider()
     from apps.notifications.providers.stub import StubSMSProvider
-    logger.info("NotificationService: using StubSMSProvider (no AT credentials)")
+    logger.info("NotificationService: using StubSMSProvider (no credentials)")
     return StubSMSProvider()
 
 

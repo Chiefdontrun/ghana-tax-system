@@ -82,7 +82,7 @@ class TestRegisterEndpoint:
     def test_web_registration_success_returns_201(self, client):
         import json
         resp = client.post(
-            "/api/register",
+            "/api/register/",
             data=json.dumps(VALID_PAYLOAD),
             content_type="application/json",
         )
@@ -94,7 +94,7 @@ class TestRegisterEndpoint:
     def test_web_registration_invalid_phone_returns_422(self, client):
         payload = {**VALID_PAYLOAD, "phone_number": "notaphone"}
         resp = client.post(
-            "/api/register",
+            "/api/register/",
             data=json.dumps(payload),
             content_type="application/json",
         )
@@ -103,7 +103,7 @@ class TestRegisterEndpoint:
     def test_web_registration_missing_name_returns_422(self, client):
         payload = {k: v for k, v in VALID_PAYLOAD.items() if k != "name"}
         resp = client.post(
-            "/api/register",
+            "/api/register/",
             data=json.dumps(payload),
             content_type="application/json",
         )
@@ -112,7 +112,7 @@ class TestRegisterEndpoint:
     def test_web_registration_missing_location_returns_422(self, client):
         payload = {k: v for k, v in VALID_PAYLOAD.items() if k != "location"}
         resp = client.post(
-            "/api/register",
+            "/api/register/",
             data=json.dumps(payload),
             content_type="application/json",
         )
@@ -121,7 +121,7 @@ class TestRegisterEndpoint:
     def test_web_registration_invalid_business_type_returns_422(self, client):
         payload = {**VALID_PAYLOAD, "business_type": "invalid_type"}
         resp = client.post(
-            "/api/register",
+            "/api/register/",
             data=json.dumps(payload),
             content_type="application/json",
         )
@@ -129,8 +129,8 @@ class TestRegisterEndpoint:
 
     def test_web_registration_duplicate_phone_returns_200_with_same_tin(self, client):
         import json
-        resp1 = client.post("/api/register", data=json.dumps(VALID_PAYLOAD), content_type="application/json")
-        resp2 = client.post("/api/register", data=json.dumps(VALID_PAYLOAD), content_type="application/json")
+        resp1 = client.post("/api/register/", data=json.dumps(VALID_PAYLOAD), content_type="application/json")
+        resp2 = client.post("/api/register/", data=json.dumps(VALID_PAYLOAD), content_type="application/json")
         assert resp1.status_code == 201
         # Idempotent second call: may return 201 with same TIN
         tin1 = resp1.json()["data"]["tin_number"]
@@ -144,7 +144,7 @@ class TestTINLookupEndpoint:
     def test_tin_lookup_found(self, client, sample_trader):
         import json
         resp = client.post(
-            "/api/tin/lookup",
+            "/api/tin/lookup/",
             data=json.dumps({"phone_number": sample_trader["phone_number"]}),
             content_type="application/json",
         )
@@ -156,7 +156,7 @@ class TestTINLookupEndpoint:
     def test_tin_lookup_not_found(self, client):
         import json
         resp = client.post(
-            "/api/tin/lookup",
+            "/api/tin/lookup/",
             data=json.dumps({"phone_number": "+233244999999"}),
             content_type="application/json",
         )
@@ -165,7 +165,7 @@ class TestTINLookupEndpoint:
     def test_tin_lookup_invalid_phone_returns_422(self, client):
         import json
         resp = client.post(
-            "/api/tin/lookup",
+            "/api/tin/lookup/",
             data=json.dumps({"phone_number": "badphone"}),
             content_type="application/json",
         )

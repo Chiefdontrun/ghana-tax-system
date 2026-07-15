@@ -22,6 +22,10 @@ from apps.ussd.validators import (
     validate_ussd_name,
     validate_ussd_phone,
 )
+from apps.registration.repository import TraderRepository
+from apps.tax.repository import TaxAssessmentRepository
+from apps.payments.services import PaymentService
+from apps.payments.exceptions import PaymentInitiationError
 
 logger = logging.getLogger(__name__)
 
@@ -33,6 +37,9 @@ STATE_REG_REGION = "REG_REGION"
 STATE_REG_DISTRICT = "REG_DISTRICT"
 STATE_REG_CONFIRM = "REG_CONFIRM"
 STATE_CHECK_TIN = "CHECK_TIN"
+STATE_PAY_ASSESSMENT_SELECT = "PAY_ASSESSMENT_SELECT"
+STATE_PAY_ASSESSMENT_NETWORK = "PAY_ASSESSMENT_NETWORK"
+STATE_PAY_ASSESSMENT_OTP = "PAY_ASSESSMENT_OTP"
 STATE_HELP = "HELP"
 STATE_COMPLETE = "COMPLETE"
 
@@ -70,6 +77,9 @@ _session_store = USSDSessionStore()
 _registration_service = RegistrationService()
 _tin_service = TINService()
 _audit_repo = AuditRepository()
+_trader_repo = TraderRepository()
+_assessment_repo = TaxAssessmentRepository()
+_payment_service = PaymentService()
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
@@ -79,7 +89,8 @@ def _main_menu_text() -> str:
         "CON Welcome to DA Revenue\n"
         "1. Register Business\n"
         "2. Check My TIN\n"
-        "3. Help"
+        "3. Pay Assessment\n"
+        "4. Help"
     )
 
 
@@ -168,6 +179,12 @@ class USSDStateMachine:
             return self._handle_reg_confirm(session, session_id, msisdn, user_input)
         elif step == STATE_CHECK_TIN:
             return self._handle_check_tin(session, session_id, msisdn, user_input)
+        elif step == STATE_PAY_ASSESSMENT_SELECT:
+            return self._handle_pay_assessment_select(session, session_id, user_input)
+        elif step == STATE_PAY_ASSESSMENT_NETWORK:
+            return self._handle_pay_assessment_network(session, session_id, msisdn, user_input)
+        elif step == STATE_PAY_ASSESSMENT_OTP:
+            return self._handle_pay_assessment_otp(session, session_id, msisdn, user_input)
         elif step == STATE_HELP:
             # Should never reach here — HELP goes straight to END
             return self._end_help()
@@ -207,6 +224,35 @@ class USSDStateMachine:
                 "or press 0 to use this number:"
             )
         elif user_input == "3":
+            # Pay Assessment
+            phone = normalise_phone(msisdn)
+            trader = _trader_repo.find_by_phone(phone)
+            if not trader:
+                _session_store.delete(session_id)
+                return "END You must register a business before paying assessments."
+            
+            assessments = _assessment_repo.list_for_trader(trader["trader_id"])
+            outstanding = [a for a in assessments if a.get("status") in ["PENDING", "PARTIAL"]]
+            if not outstanding:
+                _session_store.delete(session_id)
+                return "END You have no outstanding assessments."
+            
+            # Only show up to 5 assessments to fit in USSD screen
+            outstanding = outstanding[:5]
+            session["step"] = STATE_PAY_ASSESSMENT_SELECT
+            # Ensure we store it as a dict mapping "1" to assessment_id
+            assessments_map = {str(i+1): a["assessment_id"] for i, a in enumerate(outstanding)}
+            session["collected"]["assessments"] = assessments_map
+            session["collected"]["trader_id"] = trader["trader_id"]
+            _session_store.set(session_id, session)
+            
+            menu = "CON Select Assessment to Pay:\n"
+            for i, a in enumerate(outstanding):
+                amt = (a.get("amount_due", 0) - a.get("amount_paid", 0)) / 100
+                menu += f"{i+1}. {a.get('period_label')} {a.get('tax_category')} (GHS {amt:.2f})\n"
+            return menu
+
+        elif user_input == "4":
             _session_store.delete(session_id)
             return self._end_help()
         else:
@@ -216,7 +262,8 @@ class USSDStateMachine:
                 "Welcome to DA Revenue\n"
                 "1. Register Business\n"
                 "2. Check My TIN\n"
-                "3. Help"
+                "3. Pay Assessment\n"
+                "4. Help"
             )
 
     def _handle_reg_name(self, session: dict, session_id: str, user_input: str) -> str:
@@ -396,6 +443,75 @@ class USSDStateMachine:
             return f"END Your TIN is {result['tin_number']}"
         else:
             return "END No registration found for that number."
+
+    def _handle_pay_assessment_select(self, session: dict, session_id: str, user_input: str) -> str:
+        assessments = session["collected"].get("assessments", {})
+        assessment_id = assessments.get(user_input)
+        if not assessment_id:
+            return "CON Invalid selection.\nPlease try again."
+        
+        session["collected"]["assessment_id"] = assessment_id
+        session["step"] = STATE_PAY_ASSESSMENT_NETWORK
+        _session_store.set(session_id, session)
+        
+        return (
+            "CON Select Network:\n"
+            "1. MTN\n"
+            "2. Telecel\n"
+            "3. AirtelTigo"
+        )
+
+    def _handle_pay_assessment_network(self, session: dict, session_id: str, msisdn: str, user_input: str) -> str:
+        network_map = {"1": "MTN", "2": "VODAFONE", "3": "TIGO"}
+        network = network_map.get(user_input)
+        if not network:
+            return "CON Invalid network.\n1. MTN\n2. Telecel\n3. AirtelTigo"
+        
+        assessment_id = session["collected"]["assessment_id"]
+        trader_id = session["collected"]["trader_id"]
+        assessment = _assessment_repo.find_by_id(assessment_id)
+        amount_pesewas = assessment.get("amount_due", 0) - assessment.get("amount_paid", 0)
+        phone = normalise_phone(msisdn)
+        
+        try:
+            result = _payment_service.initiate_payment(
+                assessment_id=assessment_id,
+                amount_pesewas=amount_pesewas,
+                momo_network=network,
+                phone_number=phone,
+                channel="ussd",
+                actor_trader_id=trader_id
+            )
+        except PaymentInitiationError as e:
+            _session_store.delete(session_id)
+            return f"END Payment failed: {e}"
+        
+        if result.get("requires_otp"):
+            session["collected"]["payment_id"] = result.get("payment_id")
+            session["step"] = STATE_PAY_ASSESSMENT_OTP
+            _session_store.set(session_id, session)
+            msg = result.get("display_text") or "Enter OTP sent to your phone:"
+            return f"CON {msg}"
+        
+        _session_store.delete(session_id)
+        return "END Please approve the payment prompt on your phone."
+
+    def _handle_pay_assessment_otp(self, session: dict, session_id: str, msisdn: str, user_input: str) -> str:
+        payment_id = session["collected"].get("payment_id")
+        trader_id = session["collected"]["trader_id"]
+        
+        try:
+            _payment_service.submit_otp(
+                payment_id=payment_id,
+                trader_id=trader_id,
+                otp=user_input
+            )
+        except PaymentInitiationError as e:
+            _session_store.delete(session_id)
+            return f"END Payment failed: {e}"
+            
+        _session_store.delete(session_id)
+        return "END Payment submitted. You will receive an SMS confirmation."
 
     @staticmethod
     def _end_help() -> str:

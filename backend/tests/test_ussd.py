@@ -30,9 +30,9 @@ from apps.ussd.state_machine import (
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
-def ussd_post(client, session_id, phone, text):
+def ussd_post(client, session_id: str, phone: str, text: str):
     return client.post(
-        "/ussd/callback",
+        "/ussd/callback/",
         data={
             "sessionId": session_id,
             "serviceCode": "*123#",
@@ -107,7 +107,7 @@ class TestUSSDStateMachineUnit:
         sm = USSDStateMachine()
         with patch("apps.ussd.state_machine._session_store") as mock_store:
             mock_store.get.return_value = {"step": STATE_MAIN_MENU, "phone_number": MSISDN, "collected": {}}
-            result = sm.process("sess001", MSISDN, "3")
+            result = sm.process("sess001", MSISDN, "4")
         assert result.startswith("END")
         assert "help" in result.lower() or "District Assembly" in result
 
@@ -214,7 +214,7 @@ class TestUSSDWebhookEndpoint:
 
     def test_ussd_missing_session_id_returns_400(self, client):
         resp = client.post(
-            "/ussd/callback",
+            "/ussd/callback/",
             data={"serviceCode": "*123#", "phoneNumber": MSISDN, "text": ""},
         )
         assert resp.status_code == 400

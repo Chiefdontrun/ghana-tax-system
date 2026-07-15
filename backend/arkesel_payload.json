@@ -1,0 +1,18 @@
+{
+  "method": "POST",
+  "headers": {
+    "Content-Length": "142",
+    "Content-Type": "application/json",
+    "X-Forwarded-For": "139.162.225.157",
+    "X-Forwarded-Proto": "https",
+    "X-Forwarded-Port": "443",
+    "Host": "yummy-symbols-joke.loca.lt",
+    "Accept": "*/*",
+    "User-Agent": "ReactorNetty/1.0.39",
+    "X-Forwarded-Host": "yummy-symbols-joke.loca.lt",
+    "Connection": "keep-alive"
+  },
+  "GET": {},
+  "POST": {},
+  "body": "{\"sessionID\":\"17841466151740419\",\"userID\":\"3NV5OX7PZK_HICOs\",\"newSession\":true,\"msisdn\":\"233231804643\",\"userData\":\"*928*309#\",\"network\":\"MTN\"}"
+}
