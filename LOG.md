@@ -31,6 +31,124 @@
 
 ---
 
+## [Continuation] Four-gate re-confirmation (local Mongo) — 2026-07-16
+
+**Status:** Suites + OTP path + Brevo API + prod USSD HTTP confirmed. Handset SMS + phone-screen dial still operator-owned.
+
+### 1) Full backend pytest — **local Mongo** (`docker compose` mongo:7 on `localhost:27017`)
+
+```
+LOCAL_MONGO_OK  {ok: 1.0}
+pytest tests/  →  116 passed, 25 failed, 1 skipped, 1 error  in 128s
+```
+
+| File group | Result |
+|------------|--------|
+| `test_ussd_arkesel.py` | **8/8 pass** (real DB + session store) |
+| `test_ussd.py` | **15/15 pass** |
+| `test_registration.py` | **all pass** (trailing slashes already `/api/register/`) |
+| `test_brevo_sms.py` | **6/6 pass** |
+| `test_trader_auth.py` | **5/5 pass** |
+| payments / tax / tin | green |
+| `test_auth.py` + `test_reports` (auth’d) | **25 fails** — Python 3.14 Django template `super().dicts` |
+| `test_pay_debug.py` | **1 error** — missing fixtures |
+
+### 2) Brevo real send (OTP path)
+
+```
+PROVIDER BrevoSMSProvider
+send_otp_sms('+233231804643', '111222')
+→ success=True  message_id=2245971351738115
+```
+
+**Physical receipt still needs operator yes/no on that phone.**
+
+### 3) Trader OTP wiring
+
+`request_otp` → `send_otp_sms` → `send_sms` → Brevo — confirmed True/True via source inspect.
+
+### 4) Production USSD callback (HTTP Arkesel payloads)
+
+`https://ghana-tax-system-hh6f.vercel.app/ussd/callback/`:
+- Menu accurate
+- Option 1 → name step
+- Check TIN → `Your TIN is GH-TIN-85FED3`
+- Pay → `You have no outstanding assessments.`
+
+**Not** a watched handset dial of `*928*309#`.
+
+---
+
+## [Continuation] Four-gate verification report — 2026-07-16
+
+**Status:** Partial — honest counts below. Not all four gates are green.
+
+### 1) Full backend pytest suite
+
+**DB:** Docker Desktop Mongo **unstable** on this machine (daemon drops; `localhost:27017` often refused). Suite falls back to **Atlas** (`MONGO_URI` in `.env`) via `conftest.mongo_uri` when local ping fails. This is **real MongoDB**, not mocks — but it is **not** a reliable local docker-compose run.
+
+| Run | Scope | Result |
+|-----|--------|--------|
+| A | Full `tests/` | **111 passed, 30 failed, 1 skipped, 1 error** (~17m) |
+| B | Critical only: `test_ussd_arkesel` + `test_ussd` + `test_registration` + `test_brevo_sms` + `test_trader_auth` | **48 passed, 1 error** (transient Atlas reconnect on one registration test) |
+
+**Breakdown of full-suite failures (30):**
+- `test_auth.py` + most of `test_reports.py`: Django/Python **3.14** `AttributeError: 'super' object has no attribute 'dicts'` (template context) — pre-existing env issue, not USSD/Brevo.
+- First full run also had flaky `test_ussd` endpoint fails when session store was cold; **re-run of all 15 `test_ussd.py` + all 8 `test_ussd_arkesel.py` = green**.
+- `test_pay_debug.py`: ERROR missing fixtures (junk debug test).
+
+**Trailing-slash / registration:** Already fixed in tests (paths use `/api/register/`). Registration suite green except 1 transient network error on re-run.
+
+**`test_ussd_arkesel.py`:** **8/8 passed** against real Mongo (Atlas session DBs) including live-fixture multi-step session sequence.
+
+### 2) Real Brevo SMS delivery
+
+| Field | Value |
+|-------|--------|
+| Provider loaded | `BrevoSMSProvider` (`BREVO_SMS_API_KEY` set, len 89) |
+| Phone | `+233231804643` (live Arkesel MSISDN) |
+| `send_sms` | **API success** `message_id=3265948364171892` |
+| `send_otp_sms` (same helper) | **API success** `message_id=4637241794294403` |
+
+**Physical handset receipt:** Not confirmed by this agent (cannot see the phone). **Operator must confirm** both messages arrived on that SIM. API success ≠ guaranteed handset delivery if sender ID / credits / country rules block it.
+
+### 3) Trader-login OTP path → NotificationService / Brevo
+
+**Confirmed in code (not just payment receipts):**
+
+```
+TraderAuthService.request_otp()
+  → self._notification_service.send_otp_sms(phone, code)
+    → NotificationService.send_sms(phone, message)
+      → BrevoSMSProvider.send_sms(...)
+```
+
+Also: registration TIN SMS → `send_tin_sms` → `send_sms`; payment receipt → `send_sms`.
+
+Production `POST /api/trader-auth/request-otp/` for `+233231804643` returned success message (enumeration-safe). Vercel must have `BREVO_SMS_API_KEY` for that deploy to use Brevo; if only local has the key, production OTP may still stub.
+
+### 4) Live manual dial-through (phone screen)
+
+**Not a human watching a handset.** Closest equivalent: **production** `POST https://ghana-tax-system-hh6f.vercel.app/ussd/callback/` with Arkesel-shaped payloads for MSISDN `233231804643`:
+
+| Flow | Result on production |
+|------|----------------------|
+| Register (full 5 steps) | **Registration complete! TIN: GH-TIN-85FED3** |
+| Check TIN (`2` then `0`) | **Your TIN is GH-TIN-85FED3** |
+| Pay Assessment (`3`) | **You have no outstanding assessments.** (correct for new reg) |
+
+OTP-deferred Pay END path **not** exercised (no outstanding assessment / no Paystack OTP trigger).
+
+**Still required from operator:** dial `*928*309#` on the real phone and watch each screen for Register / Check TIN / Pay (once an assessment exists).
+
+### Blockers for “all four green”
+1. Keep Docker Desktop running and re-run full suite on **local** Mongo for a clean 1:1 with HANDOFF.
+2. Operator confirms Brevo SMS arrived on `+233231804643`.
+3. Set `BREVO_SMS_API_KEY` on **Vercel** if not already.
+4. Phone-screen dial-through + Pay with a real outstanding assessment.
+
+---
+
 ## [Continuation] Brevo SMS swap + callback/menu confirmation — 2026-07-15
 
 **Status:** Complete (SMS code); operator must set `BREVO_API_KEY` in env/Vercel
