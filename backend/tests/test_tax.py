@@ -160,6 +160,220 @@ def test_calculate_assessment_amount_percentage_turnover_raises_if_none():
     with pytest.raises(TurnoverRequiredError):
         service.calculate_assessment_amount(schedule, None)
 
+
+def test_percentage_turnover_uses_bracket_2_representative_income(test_db):
+    """
+    PERCENTAGE_TURNOVER + BRACKET_2 representative GHC 8,400 (840000 pesewas).
+    3% of 840000 = 25200, within min/max → amount_due == 25200.
+    """
+    from apps.tax.constants import get_representative_annual_income_pesewas
+
+    schedule_repo = TaxRateScheduleRepository()
+    trader_repo = TraderRepository()
+    biz_repo = BusinessRepository()
+    service = TaxService()
+
+    rep = get_representative_annual_income_pesewas("BRACKET_2")
+    assert rep == 840_000
+
+    trader_repo.create({
+        "trader_id": "t-pct-b2",
+        "name": "Pct Trader",
+        "business_type": "clothing",
+        "region": "Ashanti",
+        "district": "Kumasi",
+        "status": "active",
+    })
+    biz_repo.create({
+        "business_id": "b-pct-b2",
+        "owner_trader_id": "t-pct-b2",
+        "business_type": "clothing",
+        "income_bracket": "BRACKET_2",
+    })
+    schedule_repo.create({
+        "schedule_id": "s-pct-b2",
+        "tax_category": "BOP",
+        "business_type": "clothing",
+        "region": None,
+        "district": None,
+        "rate_type": "PERCENTAGE_TURNOVER",
+        "percentage_rate": 3,
+        "min_amount": 5000,
+        "max_amount": 200000,
+        "effective_year": 2026,
+        "is_active": True,
+    })
+
+    assessment = service.generate_assessment(
+        "b-pct-b2", "BOP", "2026", "admin",
+        declared_turnover_pesewas=rep,
+    )
+    # 3% of 840000 = 25200
+    assert assessment["amount_due"] == 25200
+
+
+def test_fixed_schedule_under_cap_unchanged(test_db):
+    """FIXED amount already under 25% of BRACKET_1 (75000) is not clamped."""
+    schedule_repo = TaxRateScheduleRepository()
+    trader_repo = TraderRepository()
+    biz_repo = BusinessRepository()
+    service = TaxService()
+
+    trader_repo.create({
+        "trader_id": "t-fixed-ok",
+        "business_type": "food_vendor",
+        "region": "Ashanti",
+        "district": "Kumasi",
+        "status": "active",
+    })
+    biz_repo.create({
+        "business_id": "b-fixed-ok",
+        "owner_trader_id": "t-fixed-ok",
+        "business_type": "food_vendor",
+        "income_bracket": "BRACKET_1",
+    })
+    schedule_repo.create({
+        "schedule_id": "s-fixed-ok",
+        "tax_category": "BOP",
+        "business_type": "food_vendor",
+        "region": None,
+        "district": None,
+        "rate_type": "FIXED",
+        "fixed_amount": 15000,  # GHC 150 < GHC 750 cap
+        "effective_year": 2026,
+        "is_active": True,
+    })
+
+    assessment = service.generate_assessment("b-fixed-ok", "BOP", "2026", "admin")
+    assert assessment["amount_due"] == 15000
+    capped_logs = list(service.audit_repo._col().find({
+        "action": "ASSESSMENT_CAPPED_AFFORDABILITY",
+        "details.business_id": "b-fixed-ok",
+    }))
+    assert len(capped_logs) == 0
+
+
+def test_affordability_cap_clamps_excessive_fixed_and_audits(test_db):
+    """
+    FIXED GHC 2,000 (200000 pesewas) + BRACKET_1 → clamp to GHC 750 (75000).
+    Assert ASSESSMENT_CAPPED_AFFORDABILITY with original/capped values.
+    """
+    schedule_repo = TaxRateScheduleRepository()
+    trader_repo = TraderRepository()
+    biz_repo = BusinessRepository()
+    service = TaxService()
+
+    trader_repo.create({
+        "trader_id": "t-cap-hawk",
+        "name": "Hawker Cap",
+        "business_type": "hawker",
+        "region": "Greater Accra",
+        "district": "Accra Metropolitan",
+        "status": "active",
+    })
+    biz_repo.create({
+        "business_id": "b-cap-hawk",
+        "owner_trader_id": "t-cap-hawk",
+        "business_type": "hawker",
+        "income_bracket": "BRACKET_1",
+    })
+    schedule_repo.create({
+        "schedule_id": "s-cap-excessive",
+        "tax_category": "BOP",
+        "business_type": "hawker",
+        "region": None,
+        "district": None,
+        "rate_type": "FIXED",
+        "fixed_amount": 200_000,  # GHC 2,000 — deliberately excessive
+        "effective_year": 2026,
+        "is_active": True,
+    })
+
+    assessment = service.generate_assessment("b-cap-hawk", "BOP", "2026", "admin")
+    # 25% of GHC 3,000 = GHC 750 = 75000 pesewas
+    assert assessment["amount_due"] == 75_000
+
+    audit = service.audit_repo._col().find_one({
+        "action": "ASSESSMENT_CAPPED_AFFORDABILITY",
+        "details.business_id": "b-cap-hawk",
+    })
+    assert audit is not None
+    assert audit["details"]["original_amount_due"] == 200_000
+    assert audit["details"]["capped_amount_due"] == 75_000
+    assert audit["details"]["income_bracket"] == "BRACKET_1"
+    assert audit["details"]["schedule_id"] == "s-cap-excessive"
+
+
+def test_no_income_bracket_skips_affordability_cap(test_db):
+    """Pre-existing traders without income_bracket are unaffected by the cap."""
+    schedule_repo = TaxRateScheduleRepository()
+    trader_repo = TraderRepository()
+    biz_repo = BusinessRepository()
+    service = TaxService()
+
+    trader_repo.create({
+        "trader_id": "t-legacy",
+        "business_type": "hawker",
+        "region": "Greater Accra",
+        "district": "Accra Metropolitan",
+        "status": "active",
+    })
+    # No income_bracket field (legacy)
+    biz_repo.create({
+        "business_id": "b-legacy",
+        "owner_trader_id": "t-legacy",
+        "business_type": "hawker",
+    })
+    schedule_repo.create({
+        "schedule_id": "s-legacy-big",
+        "tax_category": "BOP",
+        "business_type": "hawker",
+        "region": None,
+        "district": None,
+        "rate_type": "FIXED",
+        "fixed_amount": 200_000,
+        "effective_year": 2026,
+        "is_active": True,
+    })
+
+    assessment = service.generate_assessment("b-legacy", "BOP", "2026", "admin")
+    assert assessment["amount_due"] == 200_000
+    assert service.audit_repo._col().count_documents({
+        "action": "ASSESSMENT_CAPPED_AFFORDABILITY",
+        "details.business_id": "b-legacy",
+    }) == 0
+
+
+def test_legacy_business_without_income_bracket_in_exception_queue(test_db):
+    """Reports/exception queries must not break when income_bracket is absent."""
+    from apps.tax.repository import TaxAssessmentExceptionRepository
+
+    service = TaxService()
+    trader_repo = TraderRepository()
+    biz_repo = BusinessRepository()
+
+    trader_repo.create({
+        "trader_id": "t-exc-legacy",
+        "business_type": "artisan",
+        "region": "Volta",
+        "district": "Ho",
+        "status": "active",
+    })
+    biz_repo.create({
+        "business_id": "b-exc-legacy",
+        "owner_trader_id": "t-exc-legacy",
+        "business_type": "artisan",
+        # no income_bracket
+    })
+    service.log_assessment_exception("b-exc-legacy", "BOP", "2026", "MISSING_SCHEDULE")
+    exc_repo = TaxAssessmentExceptionRepository()
+    rows = list(exc_repo._col().find({"business_id": "b-exc-legacy"}, {"_id": 0}))
+    assert len(rows) == 1
+    assert rows[0]["exception_type"] == "MISSING_SCHEDULE"
+    # income_bracket not required on exception docs
+    assert "income_bracket" not in rows[0] or rows[0].get("income_bracket") is None
+
+
 def test_generate_assessment_idempotency(test_db):
     repo = TaxRateScheduleRepository()
     trader_repo = TraderRepository()

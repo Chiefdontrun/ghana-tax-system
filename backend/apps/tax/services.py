@@ -17,6 +17,7 @@ from apps.tax.repository import (
 from apps.registration.repository import BusinessRepository, TraderRepository
 from apps.audit.repository import AuditRepository
 from apps.tax.exceptions import RateScheduleNotFoundError, TurnoverRequiredError
+from apps.tax.constants import affordability_cap_pesewas
 
 logger = logging.getLogger(__name__)
 
@@ -86,17 +87,26 @@ class TaxService:
 
         return max(valid_matches, key=specificity)
 
-    def calculate_assessment_amount(self, schedule: dict, declared_turnover_pesewas: Optional[int] = None) -> int:
+    def calculate_assessment_amount(
+        self,
+        schedule: dict,
+        declared_turnover_pesewas: Optional[int] = None,
+        income_bracket: Optional[str] = None,
+        business_id: Optional[str] = None,
+    ) -> int:
         """
         Calculate assessment amount based on schedule rules.
         Returns amount in pesewas.
+
+        When income_bracket is set, applies a hard affordability cap of 25% of
+        the bracket's representative annual income (both FIXED and
+        PERCENTAGE_TURNOVER). Pre-existing businesses with no bracket skip the cap.
         """
         rate_type = schedule.get("rate_type")
         
         if rate_type == "FIXED":
-            return schedule["fixed_amount"]
-            
-        if rate_type == "PERCENTAGE_TURNOVER":
+            amount = schedule["fixed_amount"]
+        elif rate_type == "PERCENTAGE_TURNOVER":
             if declared_turnover_pesewas is None:
                 raise TurnoverRequiredError("Declared turnover is required for PERCENTAGE_TURNOVER schedule.")
                 
@@ -117,10 +127,30 @@ class TaxService:
                 amount = min_amount
             if max_amount is not None and amount > max_amount:
                 amount = max_amount
-                
-            return amount
-            
-        raise ValueError(f"Unknown rate_type: {rate_type}")
+        else:
+            raise ValueError(f"Unknown rate_type: {rate_type}")
+
+        # Hard affordability cap — unconditional for any rate type when bracket is known
+        cap = affordability_cap_pesewas(income_bracket)
+        if cap is not None and amount > cap:
+            original_amount = amount
+            amount = cap
+            self.audit_repo.log({
+                "action": "ASSESSMENT_CAPPED_AFFORDABILITY",
+                "entity_type": "tax_assessment",
+                "entity_id": business_id or schedule.get("schedule_id", ""),
+                "actor_type": "system",
+                "channel": "tax_engine",
+                "details": {
+                    "business_id": business_id,
+                    "original_amount_due": original_amount,
+                    "capped_amount_due": amount,
+                    "income_bracket": income_bracket,
+                    "schedule_id": schedule.get("schedule_id"),
+                },
+            })
+
+        return amount
 
     def generate_assessment(
         self,
@@ -179,7 +209,15 @@ class TaxService:
             year=year
         )
 
-        amount_due = self.calculate_assessment_amount(schedule, declared_turnover_pesewas)
+        # Nullable on legacy businesses — cap only when present
+        income_bracket = business.get("income_bracket")
+
+        amount_due = self.calculate_assessment_amount(
+            schedule,
+            declared_turnover_pesewas,
+            income_bracket=income_bracket,
+            business_id=business_id,
+        )
 
         # Set due date convention: Dec 31 of the year for BOP
         if tax_category == "BOP":

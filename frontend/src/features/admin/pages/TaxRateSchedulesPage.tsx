@@ -6,6 +6,7 @@ import api from "@/lib/api";
 import { useRateSchedules, type RateSchedule } from "../hooks/useTax";
 
 const BUSINESS_TYPES = [
+  "hawker",
   "food_vendor",
   "clothing",
   "electronics",

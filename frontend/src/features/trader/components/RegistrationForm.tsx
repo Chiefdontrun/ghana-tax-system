@@ -8,6 +8,13 @@ import type { RegistrationPayload } from "../hooks/useRegistration";
 // ── Zod schema ────────────────────────────────────────────────────────────────
 const ghanaPhoneRegex = /^(\+233|0|233)[2-9][0-9]{8}$/;
 
+const INCOME_BRACKETS = [
+  { value: "BRACKET_1", label: "GHC 100 – 400" },
+  { value: "BRACKET_2", label: "GHC 401 – 1,000" },
+  { value: "BRACKET_3", label: "GHC 1,001 – 3,000" },
+  { value: "BRACKET_4", label: "GHC 3,001+" },
+] as const;
+
 const schema = z.object({
   name: z.string().min(3, "Full name must be at least 3 characters").max(80, "Name too long"),
   phone_number: z
@@ -17,11 +24,17 @@ const schema = z.object({
   region: z.string().min(1, "Select a region"),
   district: z.string().min(2, "Enter your district").max(80, "District name too long"),
   market_name: z.string().min(2, "Enter market or community name").max(80, "Name too long"),
+  income_bracket: z.enum(["BRACKET_1", "BRACKET_2", "BRACKET_3", "BRACKET_4"], {
+    required_error: "Select your monthly income bracket",
+    invalid_type_error: "Select your monthly income bracket",
+  }),
 });
 
 type FormValues = z.infer<typeof schema>;
 
+// Hawker first (presentation order only).
 const BUSINESS_TYPES = [
+  { value: "hawker", label: "Hawker" },
   { value: "food_vendor", label: "Food Vendor" },
   { value: "clothing", label: "Clothing" },
   { value: "electronics", label: "Electronics" },
@@ -44,8 +57,8 @@ const REGIONS = [
 ];
 
 // ── Step indicator ────────────────────────────────────────────────────────────
-function StepIndicator({ step }: { step: 1 | 2 }) {
-  const steps = ["Personal Info", "Business Info"];
+function StepIndicator({ step }: { step: 1 | 2 | 3 }) {
+  const steps = ["Personal Info", "Business Info", "Income Bracket"];
   return (
     <div className="flex items-center gap-0 mb-8">
       {steps.map((label, i) => {
@@ -98,7 +111,7 @@ export default function RegistrationForm({
   isLoading,
   serverError,
 }: RegistrationFormProps) {
-  const [step, setStep] = useState<1 | 2>(1);
+  const [step, setStep] = useState<1 | 2 | 3>(1);
 
   const {
     register,
@@ -110,9 +123,14 @@ export default function RegistrationForm({
     mode: "onTouched",
   });
 
-  const handleNext = async () => {
+  const handleNextFromPersonal = async () => {
     const valid = await trigger(["name", "phone_number"]);
     if (valid) setStep(2);
+  };
+
+  const handleNextFromBusiness = async () => {
+    const valid = await trigger(["business_type", "region", "district", "market_name"]);
+    if (valid) setStep(3);
   };
 
   const onSubmit = (values: FormValues) => {
@@ -120,6 +138,7 @@ export default function RegistrationForm({
       name: values.name,
       phone_number: values.phone_number,
       business_type: values.business_type,
+      income_bracket: values.income_bracket,
       location: {
         region: values.region,
         district: values.district,
@@ -162,7 +181,7 @@ export default function RegistrationForm({
             variant="primary"
             size="lg"
             fullWidth
-            onClick={handleNext}
+            onClick={handleNextFromPersonal}
           >
             Next: Business Info →
           </Button>
@@ -209,6 +228,63 @@ export default function RegistrationForm({
               size="lg"
               className="flex-1"
               onClick={() => setStep(1)}
+              disabled={isLoading}
+            >
+              ← Back
+            </Button>
+            <Button
+              type="button"
+              variant="primary"
+              size="lg"
+              className="flex-1"
+              onClick={handleNextFromBusiness}
+            >
+              Next: Income Bracket →
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {/* ── Step 3: Income Bracket (before TIN generation) ── */}
+      {step === 3 && (
+        <div className="space-y-5">
+          <div>
+            <p className="text-sm font-medium text-cu-text mb-1">
+              Select your monthly income bracket
+              <span className="text-cu-red ml-1" aria-hidden>*</span>
+            </p>
+            <p className="text-xs text-cu-muted mb-3">
+              This may affect your tax rate depending on trade type. All traders select a
+              bracket for data completeness, including fixed-fee businesses where the
+              amount may not change.
+            </p>
+            <div className="space-y-2" role="radiogroup" aria-label="Monthly income bracket">
+              {INCOME_BRACKETS.map((b) => (
+                <label
+                  key={b.value}
+                  className="flex items-center gap-3 rounded-md border border-cu-border px-3 py-2.5 cursor-pointer hover:border-cu-red/50 has-[:checked]:border-cu-red has-[:checked]:bg-cu-red/5"
+                >
+                  <input
+                    type="radio"
+                    value={b.value}
+                    className="h-4 w-4 text-cu-red focus:ring-cu-red"
+                    {...register("income_bracket")}
+                  />
+                  <span className="text-sm text-cu-text">{b.label}</span>
+                </label>
+              ))}
+            </div>
+            {errors.income_bracket?.message && (
+              <p className="text-xs text-red-600 mt-1.5">{errors.income_bracket.message}</p>
+            )}
+          </div>
+          <div className="flex gap-3 pt-1">
+            <Button
+              type="button"
+              variant="secondary"
+              size="lg"
+              className="flex-1"
+              onClick={() => setStep(2)}
               disabled={isLoading}
             >
               ← Back

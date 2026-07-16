@@ -20,6 +20,7 @@ VALID_PAYLOAD = {
     "name": "Ama Owusu",
     "phone_number": "0244123456",
     "business_type": "clothing",
+    "income_bracket": "BRACKET_2",
     "location": {
         "region": "Ashanti",
         "district": "Kumasi",
@@ -68,12 +69,45 @@ class TestRegistrationService:
         collected = {
             "name": "Kwame Asante",
             "business_type": "retail",
+            "income_bracket": "BRACKET_1",
             "region": "Greater Accra",
             "market_name": "Makola Market",
         }
         result = svc.register_trader_ussd(collected, msisdn="+233201000001")
         trader = test_db["traders"].find_one({"trader_id": result["trader_id"]})
         assert trader["channel"] == "ussd"
+        business = test_db["businesses"].find_one({"owner_trader_id": result["trader_id"]})
+        assert business["income_bracket"] == "BRACKET_1"
+
+    def test_web_registration_stores_income_bracket_on_business(self, test_db):
+        from apps.registration.services import RegistrationService
+        svc = RegistrationService()
+        result = svc.register_trader_web(VALID_PAYLOAD, ip_address="127.0.0.1")
+        business = test_db["businesses"].find_one({"tin_number": result["tin_number"]})
+        assert business["income_bracket"] == "BRACKET_2"
+
+    def test_web_registration_rejects_missing_income_bracket(self, client):
+        payload = {k: v for k, v in VALID_PAYLOAD.items() if k != "income_bracket"}
+        resp = client.post(
+            "/api/register/",
+            data=json.dumps(payload),
+            content_type="application/json",
+        )
+        assert resp.status_code == 422
+
+    def test_web_registration_rejects_invalid_income_bracket(self, client):
+        payload = {**VALID_PAYLOAD, "income_bracket": "BRACKET_99"}
+        resp = client.post(
+            "/api/register/",
+            data=json.dumps(payload),
+            content_type="application/json",
+        )
+        assert resp.status_code == 422
+
+    def test_hawker_is_first_valid_business_type(self):
+        from apps.registration.validators import VALID_BUSINESS_TYPES
+        assert VALID_BUSINESS_TYPES[0] == "hawker"
+        assert "hawker" in VALID_BUSINESS_TYPES
 
 
 # ── Endpoint tests ────────────────────────────────────────────────────────────

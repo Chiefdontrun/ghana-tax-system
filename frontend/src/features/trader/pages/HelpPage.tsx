@@ -58,10 +58,11 @@ const USSD_STEPS = [
   { step: 1, label: "Dial *XXX#", detail: "Open your phone dialler and dial the USSD code." },
   { step: 2, label: "Select option 1 — Register Business", detail: "Press 1 and send to begin registration." },
   { step: 3, label: "Enter your full name", detail: "Type your name and press send." },
-  { step: 4, label: "Select your business type", detail: "Choose from the numbered list (1–6) and press send." },
-  { step: 5, label: "Select your region", detail: "Choose from the numbered list (1–7) and press send." },
-  { step: 6, label: "Enter market or community name", detail: "Type your market name and press send." },
-  { step: 7, label: "Confirm and register", detail: "Review your details, press 1 to confirm. Your TIN is displayed and sent via SMS." },
+  { step: 4, label: "Select your business type", detail: "Choose from the numbered list (1=Hawker first) and press send." },
+  { step: 5, label: "Select monthly income bracket", detail: "Choose 1–4 for your typical monthly income range." },
+  { step: 6, label: "Select your region", detail: "Choose from the numbered list (1–7) and press send." },
+  { step: 7, label: "Enter market or community name", detail: "Type your market name and press send." },
+  { step: 8, label: "Confirm and register", detail: "Review your details, press 1 to confirm. Your TIN is displayed and sent via SMS." },
 ];
 
 // ── Main page ─────────────────────────────────────────────────────────────────

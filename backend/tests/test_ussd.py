@@ -21,10 +21,16 @@ from apps.ussd.state_machine import (
     STATE_MAIN_MENU,
     STATE_REG_NAME,
     STATE_REG_BUSINESS_TYPE,
+    STATE_REG_INCOME_BRACKET,
     STATE_REG_REGION,
     STATE_REG_DISTRICT,
     STATE_REG_CONFIRM,
     STATE_CHECK_TIN,
+    BUSINESS_TYPE_MAP,
+    INCOME_BRACKET_MAP,
+    _business_type_menu_text,
+    _income_bracket_menu_text,
+    USSD_MAX_SCREEN_CHARS,
 )
 
 
@@ -90,6 +96,48 @@ class TestUSSDStateMachineUnit:
             result = sm.process("sess001", MSISDN, "1*Kofi Mensah")
         assert result.startswith("CON")
         assert "Business Type" in result
+        assert "1. Hawker" in result
+
+    def test_hawker_is_ussd_option_1(self):
+        assert BUSINESS_TYPE_MAP["1"] == "hawker"
+        assert BUSINESS_TYPE_MAP["2"] == "food_vendor"
+        menu = _business_type_menu_text()
+        # Hawker must appear before Food Vendor in the rendered menu
+        assert menu.index("1. Hawker") < menu.index("2. Food Vendor")
+
+    def test_income_bracket_menu_fits_arkesel_char_limit(self):
+        menu = _income_bracket_menu_text()
+        assert menu.startswith("CON")
+        assert len(menu) <= USSD_MAX_SCREEN_CHARS, (
+            f"Income bracket menu is {len(menu)} chars; limit is {USSD_MAX_SCREEN_CHARS}"
+        )
+        assert "1." in menu and "4." in menu
+
+    def test_business_type_advances_to_income_bracket(self):
+        sm = USSDStateMachine()
+        with patch("apps.ussd.state_machine._session_store") as mock_store:
+            mock_store.get.return_value = {
+                "step": STATE_REG_BUSINESS_TYPE,
+                "phone_number": MSISDN,
+                "collected": {"name": "Kofi Mensah"},
+            }
+            # option 1 = hawker
+            result = sm.process("sess001", MSISDN, "1*Kofi Mensah*1")
+        assert result.startswith("CON")
+        assert "Monthly income" in result or "income" in result.lower()
+        assert INCOME_BRACKET_MAP["1"] == "BRACKET_1"
+
+    def test_invalid_income_bracket_shows_error(self):
+        sm = USSDStateMachine()
+        with patch("apps.ussd.state_machine._session_store") as mock_store:
+            mock_store.get.return_value = {
+                "step": STATE_REG_INCOME_BRACKET,
+                "phone_number": MSISDN,
+                "collected": {"name": "Kofi", "business_type": "hawker"},
+            }
+            result = sm.process("sess001", MSISDN, "1*Kofi*1*9")
+        assert result.startswith("CON")
+        assert "Invalid" in result
 
     def test_invalid_business_type_shows_error(self):
         sm = USSDStateMachine()
@@ -123,8 +171,9 @@ class TestUSSDWebhookEndpoint:
 
     def test_ussd_full_registration_flow(self, client, test_db):
         """
-        Simulate all 5 steps via the real webhook endpoint.
+        Simulate full registration via the real webhook endpoint.
         Verifies a trader document is created in the DB.
+        Flow: name → business type → income bracket → region → market → confirm
         """
         sid = f"sess_full_{uuid.uuid4().hex[:6]}"
         phone = f"+2332{uuid.uuid4().hex[:8][:8]}"  # unique MSISDN
@@ -137,19 +186,25 @@ class TestUSSDWebhookEndpoint:
         ussd_post(client, sid, phone, "1")
         # Step 2 — enter name
         ussd_post(client, sid, phone, "1*Abena Asante")
-        # Step 3 — choose business type (1=Food Vendor)
-        ussd_post(client, sid, phone, "1*Abena Asante*1")
-        # Step 4 — choose region (2=Ashanti)
-        ussd_post(client, sid, phone, "1*Abena Asante*1*2")
-        # Step 5 — enter market name
-        ussd_post(client, sid, phone, "1*Abena Asante*1*2*Kejetia Market")
-        # Step 6 — confirm (1=Confirm)
-        resp = ussd_post(client, sid, phone, "1*Abena Asante*1*2*Kejetia Market*1")
+        # Step 3 — choose business type (1=Hawker, 2=Food Vendor)
+        ussd_post(client, sid, phone, "1*Abena Asante*2")
+        # Step 4 — income bracket (2=BRACKET_2)
+        ussd_post(client, sid, phone, "1*Abena Asante*2*2")
+        # Step 5 — choose region (2=Ashanti)
+        ussd_post(client, sid, phone, "1*Abena Asante*2*2*2")
+        # Step 6 — enter market name
+        ussd_post(client, sid, phone, "1*Abena Asante*2*2*2*Kejetia Market")
+        # Step 7 — confirm (1=Confirm)
+        resp = ussd_post(client, sid, phone, "1*Abena Asante*2*2*2*Kejetia Market*1")
 
         assert resp.status_code == 200
         assert b"END" in resp.content
         assert b"GH-TIN-" in resp.content
         assert test_db["traders"].count_documents({"phone_number": phone}) == 1
+        trader = test_db["traders"].find_one({"phone_number": phone})
+        business = test_db["businesses"].find_one({"owner_trader_id": trader["trader_id"]})
+        assert business["business_type"] == "food_vendor"
+        assert business["income_bracket"] == "BRACKET_2"
 
     def test_ussd_check_tin_found(self, client, sample_trader):
         sid = f"sess_check_{uuid.uuid4().hex[:6]}"
@@ -198,10 +253,14 @@ class TestUSSDWebhookEndpoint:
         ussd_post(client, sid, phone, "")
         ussd_post(client, sid, phone, "1")
         ussd_post(client, sid, phone, "1*Integration Trader")
-        ussd_post(client, sid, phone, "1*Integration Trader*3")
-        ussd_post(client, sid, phone, "1*Integration Trader*3*1")
-        ussd_post(client, sid, phone, "1*Integration Trader*3*1*Test Market")
-        ussd_post(client, sid, phone, "1*Integration Trader*3*1*Test Market*1")
+        # business type 4 = electronics (shifted: 1 hawker, 2 food, 3 clothing, 4 electronics)
+        ussd_post(client, sid, phone, "1*Integration Trader*4")
+        # income bracket 1 = BRACKET_1
+        ussd_post(client, sid, phone, "1*Integration Trader*4*1")
+        # region 1 = Greater Accra
+        ussd_post(client, sid, phone, "1*Integration Trader*4*1*1")
+        ussd_post(client, sid, phone, "1*Integration Trader*4*1*1*Test Market")
+        ussd_post(client, sid, phone, "1*Integration Trader*4*1*1*Test Market*1")
 
         resp = client.get(
             "/api/traders/",

@@ -5,6 +5,7 @@ Registration serializers — request/response shapes.
 from rest_framework import serializers
 
 from apps.registration.validators import VALID_BUSINESS_TYPES, validate_ghana_phone
+from apps.tax.constants import VALID_INCOME_BRACKETS
 
 
 class LocationInputSerializer(serializers.Serializer):
@@ -17,6 +18,8 @@ class TraderRegistrationSerializer(serializers.Serializer):
     name = serializers.CharField(min_length=2, max_length=120)
     phone_number = serializers.CharField(max_length=20)
     business_type = serializers.ChoiceField(choices=VALID_BUSINESS_TYPES)
+    # Required for new registrations; stored on business, nullable for legacy rows.
+    income_bracket = serializers.ChoiceField(choices=list(VALID_INCOME_BRACKETS))
     location = LocationInputSerializer()
 
     def validate_phone_number(self, value: str) -> str:

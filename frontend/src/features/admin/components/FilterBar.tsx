@@ -2,7 +2,7 @@ import { useRef } from "react";
 import type { TraderFilters } from "../hooks/useTraders";
 
 const BUSINESS_TYPES = [
-  "food_vendor", "clothing", "electronics", "services",
+  "hawker", "food_vendor", "clothing", "electronics", "services",
   "agriculture", "wholesale", "retail", "artisan", "other",
 ];
 

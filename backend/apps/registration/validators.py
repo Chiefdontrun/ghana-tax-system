@@ -13,7 +13,9 @@ _GHANA_PHONE_PATTERNS = [
     re.compile(r"^0([0-9]{9})$"),       # 0XXXXXXXXX
 ]
 
+# Display order: Hawker first (presentation only; stored values unchanged).
 VALID_BUSINESS_TYPES = [
+    "hawker",
     "food_vendor",
     "clothing",
     "electronics",

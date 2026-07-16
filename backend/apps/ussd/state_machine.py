@@ -4,10 +4,11 @@ Compatible with Africa's Talking USSD webhook format.
 
 Flow overview:
   MAIN_MENU
-    → "1" → REG_NAME → REG_BUSINESS_TYPE → REG_REGION
-              → REG_DISTRICT → REG_CONFIRM → COMPLETE
+    → "1" → REG_NAME → REG_BUSINESS_TYPE → REG_INCOME_BRACKET
+              → REG_REGION → REG_DISTRICT → REG_CONFIRM → COMPLETE
     → "2" → CHECK_TIN → END
-    → "3" → HELP → END
+    → "3" → PAY_ASSESSMENT → …
+    → "4" → HELP → END
 """
 
 import logging
@@ -24,15 +25,20 @@ from apps.ussd.validators import (
 )
 from apps.registration.repository import TraderRepository
 from apps.tax.repository import TaxAssessmentRepository
+from apps.tax.constants import INCOME_BRACKETS
 from apps.payments.services import PaymentService
 from apps.payments.exceptions import PaymentInitiationError
 
 logger = logging.getLogger(__name__)
 
+# Arkesel / typical USSD gateway per-screen character limit (verify with tests).
+USSD_MAX_SCREEN_CHARS = 182
+
 # ── State constants ────────────────────────────────────────────────────────────
 STATE_MAIN_MENU = "MAIN_MENU"
 STATE_REG_NAME = "REG_NAME"
 STATE_REG_BUSINESS_TYPE = "REG_BUSINESS_TYPE"
+STATE_REG_INCOME_BRACKET = "REG_INCOME_BRACKET"
 STATE_REG_REGION = "REG_REGION"
 STATE_REG_DISTRICT = "REG_DISTRICT"
 STATE_REG_CONFIRM = "REG_CONFIRM"
@@ -44,22 +50,33 @@ STATE_HELP = "HELP"
 STATE_COMPLETE = "COMPLETE"
 
 # ── Display mappings ───────────────────────────────────────────────────────────
+# Hawker first (option 1); existing types shift down by one.
 BUSINESS_TYPE_MAP = {
-    "1": "food_vendor",
-    "2": "clothing",
-    "3": "electronics",
-    "4": "services",
-    "5": "agriculture",
-    "6": "other",
+    "1": "hawker",
+    "2": "food_vendor",
+    "3": "clothing",
+    "4": "electronics",
+    "5": "services",
+    "6": "agriculture",
+    "7": "other",
 }
 
 BUSINESS_TYPE_LABELS = {
+    "hawker": "Hawker",
     "food_vendor": "Food Vendor",
     "clothing": "Clothing",
     "electronics": "Electronics",
     "services": "Services",
     "agriculture": "Agriculture",
     "other": "Other",
+}
+
+# Option number → income bracket code
+INCOME_BRACKET_MAP = {
+    "1": "BRACKET_1",
+    "2": "BRACKET_2",
+    "3": "BRACKET_3",
+    "4": "BRACKET_4",
 }
 
 REGION_MAP = {
@@ -91,6 +108,34 @@ def _main_menu_text() -> str:
         "2. Check My TIN\n"
         "3. Pay Assessment\n"
         "4. Help"
+    )
+
+
+def _business_type_menu_text() -> str:
+    return (
+        "CON Step 2/6 Business Type\n"
+        "1. Hawker\n"
+        "2. Food Vendor\n"
+        "3. Clothing\n"
+        "4. Electronics\n"
+        "5. Services\n"
+        "6. Agriculture\n"
+        "7. Other"
+    )
+
+
+def _income_bracket_menu_text() -> str:
+    """Short enough for Arkesel per-screen limit (asserted in tests)."""
+    b1 = INCOME_BRACKETS["BRACKET_1"]["ussd_label"]
+    b2 = INCOME_BRACKETS["BRACKET_2"]["ussd_label"]
+    b3 = INCOME_BRACKETS["BRACKET_3"]["ussd_label"]
+    b4 = INCOME_BRACKETS["BRACKET_4"]["ussd_label"]
+    return (
+        "CON Monthly income:\n"
+        f"1. {b1}\n"
+        f"2. {b2}\n"
+        f"3. {b3}\n"
+        f"4. {b4}"
     )
 
 
@@ -199,6 +244,8 @@ class USSDStateMachine:
             return self._handle_reg_name(session, session_id, user_input)
         elif step == STATE_REG_BUSINESS_TYPE:
             return self._handle_reg_business_type(session, session_id, user_input)
+        elif step == STATE_REG_INCOME_BRACKET:
+            return self._handle_reg_income_bracket(session, session_id, user_input)
         elif step == STATE_REG_REGION:
             return self._handle_reg_region(session, session_id, user_input)
         elif step == STATE_REG_DISTRICT:
@@ -241,7 +288,7 @@ class USSDStateMachine:
             session["step"] = STATE_REG_NAME
             _session_store.set(session_id, session)
             return (
-                "CON Step 1 of 5\n"
+                "CON Step 1 of 6\n"
                 "Enter your full name:"
             )
         elif user_input == "2":
@@ -302,15 +349,7 @@ class USSDStateMachine:
         session["collected"]["name"] = user_input.strip()
         session["step"] = STATE_REG_BUSINESS_TYPE
         _session_store.set(session_id, session)
-        return (
-            "CON Step 2 of 5 - Business Type\n"
-            "1. Food Vendor\n"
-            "2. Clothing\n"
-            "3. Electronics\n"
-            "4. Services\n"
-            "5. Agriculture\n"
-            "6. Other"
-        )
+        return _business_type_menu_text()
 
     def _handle_reg_business_type(
         self, session: dict, session_id: str, user_input: str
@@ -318,20 +357,39 @@ class USSDStateMachine:
         business_type = BUSINESS_TYPE_MAP.get(user_input)
         if not business_type:
             return (
-                "CON Invalid option. Choose business type:\n"
-                "1. Food Vendor\n"
-                "2. Clothing\n"
-                "3. Electronics\n"
-                "4. Services\n"
-                "5. Agriculture\n"
-                "6. Other"
+                "CON Invalid option. Business type:\n"
+                "1. Hawker\n"
+                "2. Food Vendor\n"
+                "3. Clothing\n"
+                "4. Electronics\n"
+                "5. Services\n"
+                "6. Agriculture\n"
+                "7. Other"
             )
 
         session["collected"]["business_type"] = business_type
+        session["step"] = STATE_REG_INCOME_BRACKET
+        _session_store.set(session_id, session)
+        return _income_bracket_menu_text()
+
+    def _handle_reg_income_bracket(
+        self, session: dict, session_id: str, user_input: str
+    ) -> str:
+        bracket = INCOME_BRACKET_MAP.get(user_input)
+        if not bracket:
+            return (
+                "CON Invalid. Monthly income:\n"
+                f"1. {INCOME_BRACKETS['BRACKET_1']['ussd_label']}\n"
+                f"2. {INCOME_BRACKETS['BRACKET_2']['ussd_label']}\n"
+                f"3. {INCOME_BRACKETS['BRACKET_3']['ussd_label']}\n"
+                f"4. {INCOME_BRACKETS['BRACKET_4']['ussd_label']}"
+            )
+
+        session["collected"]["income_bracket"] = bracket
         session["step"] = STATE_REG_REGION
         _session_store.set(session_id, session)
         return (
-            "CON Step 3 of 5 - Region\n"
+            "CON Step 4 of 6 - Region\n"
             "1. Greater Accra\n"
             "2. Ashanti\n"
             "3. Western\n"
@@ -359,7 +417,7 @@ class USSDStateMachine:
         session["step"] = STATE_REG_DISTRICT
         _session_store.set(session_id, session)
         return (
-            "CON Step 4 of 5\n"
+            "CON Step 5 of 6\n"
             "Enter market or community name:"
         )
 
@@ -377,7 +435,7 @@ class USSDStateMachine:
         c = session["collected"]
         business_label = BUSINESS_TYPE_LABELS.get(c.get("business_type", ""), c.get("business_type", ""))
         return (
-            f"CON Step 5 of 5 - Confirm\n"
+            f"CON Step 6 of 6 - Confirm\n"
             f"Name: {c.get('name', '')}\n"
             f"Business: {business_label}\n"
             f"Location: {c.get('region', '')} - {c.get('market_name', '')}\n"

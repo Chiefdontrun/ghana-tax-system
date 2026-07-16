@@ -41,6 +41,7 @@ class RegistrationService:
         phone: str = normalise_phone(validated_data["phone_number"])
         name: str = validated_data["name"]
         business_type: str = validated_data["business_type"]
+        income_bracket: str = validated_data["income_bracket"]
         loc: dict = validated_data["location"]
 
         # ── 1. Idempotency ────────────────────────────────────────────────────
@@ -100,19 +101,25 @@ class RegistrationService:
             "business_id": str(uuid.uuid4()),
             "owner_trader_id": trader_id,
             "business_type": business_type,
+            "income_bracket": income_bracket,
             "tin_number": tin_number,
             "location_id": location.get("location_id"),
         }
         _business_repo.create(business_doc)
 
         # ── 4c. Auto-generate assessment ──────────────────────────────────────
+        # Pass bracket representative annual income so PERCENTAGE_TURNOVER
+        # schedules assess immediately (no NEEDS_TURNOVER for new registrants).
         try:
             from apps.tax.services import TaxService
+            from apps.tax.constants import get_representative_annual_income_pesewas
+            declared_turnover = get_representative_annual_income_pesewas(income_bracket)
             TaxService().generate_assessment(
                 business_id=business_doc["business_id"],
                 tax_category="BOP",
                 period_label=str(datetime.now(timezone.utc).year),
-                channel_generated="auto_on_registration"
+                channel_generated="auto_on_registration",
+                declared_turnover_pesewas=declared_turnover,
             )
         except Exception as exc:
             from apps.tax.exceptions import TurnoverRequiredError, RateScheduleNotFoundError
@@ -134,6 +141,7 @@ class RegistrationService:
                 "name": name,
                 "phone_number": phone,
                 "business_type": business_type,
+                "income_bracket": income_bracket,
                 "ip_address": ip_address,
             },
         })
@@ -156,10 +164,12 @@ class RegistrationService:
         USSD registration pipeline — called from the USSD state machine.
         Uses register_trader_web internally with USSD channel override.
         """
+        income_bracket = collected.get("income_bracket")
         validated = {
             "name": collected.get("name", ""),
             "phone_number": normalise_phone(msisdn),
             "business_type": collected.get("business_type", "other"),
+            "income_bracket": income_bracket,
             "location": {
                 "region": collected.get("region", "Unknown"),
                 "district": collected.get("market_name", "Unknown"),
@@ -218,6 +228,7 @@ class RegistrationService:
             "business_id": str(uuid.uuid4()),
             "owner_trader_id": trader_id,
             "business_type": validated["business_type"],
+            "income_bracket": income_bracket,
             "tin_number": tin_number,
             "location_id": location.get("location_id"),
         }
@@ -225,11 +236,14 @@ class RegistrationService:
 
         try:
             from apps.tax.services import TaxService
+            from apps.tax.constants import get_representative_annual_income_pesewas
+            declared_turnover = get_representative_annual_income_pesewas(income_bracket)
             TaxService().generate_assessment(
                 business_id=business_doc["business_id"],
                 tax_category="BOP",
                 period_label=str(datetime.now(timezone.utc).year),
-                channel_generated="auto_on_registration"
+                channel_generated="auto_on_registration",
+                declared_turnover_pesewas=declared_turnover,
             )
         except Exception as exc:
             from apps.tax.exceptions import TurnoverRequiredError, RateScheduleNotFoundError
@@ -250,6 +264,7 @@ class RegistrationService:
                 "name": validated["name"],
                 "phone_number": msisdn,
                 "business_type": validated["business_type"],
+                "income_bracket": income_bracket,
             },
         })
 

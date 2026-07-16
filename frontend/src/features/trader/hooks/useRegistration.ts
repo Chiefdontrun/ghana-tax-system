@@ -5,6 +5,8 @@ export interface RegistrationPayload {
   name: string;
   phone_number: string;
   business_type: string;
+  /** Required for new registrations: BRACKET_1 … BRACKET_4 */
+  income_bracket: string;
   location: {
     region: string;
     district: string;

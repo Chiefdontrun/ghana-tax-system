@@ -31,6 +31,70 @@
 
 ---
 
+## [Phase] Pre-TIN income bracket + hawker-first menu + affordability cap — 2026-07-16
+
+**Status:** ✅ Complete
+
+**What was built:**
+1. **Business-type menu reorder** — `hawker` added as a valid `business_type`; display order puts Hawker first on web dropdown and USSD numbered menu (option 1 → `hawker`; prior options shift +1). Stored values unchanged for existing businesses.
+2. **`income_bracket` field** — stored on **businesses** collection (same place as `business_type`). Values: `BRACKET_1`…`BRACKET_4`. Nullable for pre-existing records (no backfill).
+3. **Registration flow** — required income-bracket step before TIN generation (web step 3 radio group; USSD new state `REG_INCOME_BRACKET` after business type, before region). Selection persisted in USSD session `collected` and written on business create.
+4. **Assessment wiring** — post-registration `generate_assessment(..., channel_generated="auto_on_registration")` now passes the bracket’s **representative annual income** as `declared_turnover_pesewas`, so `PERCENTAGE_TURNOVER` assesses immediately (no `NEEDS_TURNOVER` for new registrants with a bracket).
+5. **Hard affordability cap** — in `TaxService.calculate_assessment_amount`, after FIXED / PERCENTAGE math, if business has `income_bracket`:  
+   `cap = representative_annual_income_pesewas * 0.25`; if `amount_due > cap` → clamp and audit `ASSESSMENT_CAPPED_AFFORDABILITY` (`business_id`, `original_amount_due`, `capped_amount_due`, `income_bracket`, `schedule_id`). Applies to **both** rate types. No bracket → skip (legacy unchanged).
+
+**Income bracket constants** (`apps/tax/constants.py` — not inlined in calc):
+
+| Code | Display (monthly) | Representative annual (pesewas) | Cap (25%) |
+|------|-------------------|--------------------------------:|----------:|
+| BRACKET_1 | GHC 100 – 400 | 300000 (GHC 3,000) | 75000 (GHC 750) |
+| BRACKET_2 | GHC 401 – 1,000 | 840000 (GHC 8,400) | 210000 (GHC 2,100) |
+| BRACKET_3 | GHC 1,001 – 3,000 | 2400000 (GHC 24,000) | 600000 (GHC 6,000) |
+| BRACKET_4 | GHC 3,001+ | 4800000 (GHC 48,000) | 1200000 (GHC 12,000) |
+
+No adjustments to the specified table.
+
+**USSD income menu (Arkesel char check):** rendered string starts with `CON Monthly income:` + 4 short labels; **asserted `len(menu) <= 182`** in tests (actual length well under limit).
+
+**Files created:**
+- `backend/apps/tax/constants.py` — `INCOME_BRACKETS`, `VALID_INCOME_BRACKETS`, helpers, `AFFORDABILITY_CAP_FRACTION=0.25`
+
+**Files modified:**
+- `backend/apps/registration/validators.py` — `hawker` first in `VALID_BUSINESS_TYPES`
+- `backend/apps/registration/serializers.py` — required `income_bracket` ChoiceField
+- `backend/apps/registration/services.py` — persist bracket; pass representative turnover into `generate_assessment` (web + USSD)
+- `backend/apps/tax/services.py` — affordability clamp + audit; read `business.income_bracket` in `generate_assessment`
+- `backend/apps/ussd/state_machine.py` — hawker option 1; `STATE_REG_INCOME_BRACKET`; step counts 6; menu helpers
+- `frontend/src/features/trader/components/RegistrationForm.tsx` — hawker first; step 3 income radios + copy
+- `frontend/src/features/trader/hooks/useRegistration.ts` — `income_bracket` on payload
+- `frontend/src/features/trader/pages/HelpPage.tsx` — USSD step guide updated
+- `frontend/src/features/admin/components/FilterBar.tsx` — hawker in filter list
+- `frontend/src/features/admin/pages/TaxRateSchedulesPage.tsx` — hawker in schedule type list
+- `backend/tests/test_registration.py`, `test_ussd.py`, `test_tax.py` — menu order, validation, turnover, cap, legacy
+- `LOG.md` — this entry
+
+**Tests:**
+```
+pytest tests/test_registration.py tests/test_ussd.py tests/test_tax.py -q
+→ 52 passed in ~678s
+```
+
+| Area | Result |
+|------|--------|
+| Hawker option 1 (web `VALID_BUSINESS_TYPES[0]`, USSD `BUSINESS_TYPE_MAP["1"]`) | ✅ pass |
+| Registration rejects missing/invalid `income_bracket` (web 422) | ✅ pass |
+| USSD full flow persists `income_bracket` on business | ✅ pass |
+| PERCENTAGE_TURNOVER + BRACKET_2 → amount uses 840000 turnover (3% → 25200) | ✅ pass |
+| FIXED under cap (15000, BRACKET_1) unchanged, no cap audit | ✅ pass |
+| **Affordability cap:** FIXED 200000 + hawker BRACKET_1 → **75000**; audit original 200000 / capped 75000 | ✅ **pass** |
+| Legacy business without `income_bracket` → no cap; exception queue still works | ✅ pass |
+
+**Seed note (for next step):** demo traders should set `income_bracket` on businesses and re-generate assessments via `TaxService` so bracket-capped bills appear without a second manual pass. Representative turnover for percentage types = constants above. Cap sample: BRACKET_1 + fixed ≥ 75000 pesewas will show clamp + `ASSESSMENT_CAPPED_AFFORDABILITY`.
+
+**Deviations:** None material. USSD step labels shortened (`Step 2/6`) to keep screens compact; web remains 3 form steps (Personal → Business → Income).
+
+---
+
 ## [Seed] Production Atlas tax seed run — 2026-07-16
 
 **Status:** Complete
