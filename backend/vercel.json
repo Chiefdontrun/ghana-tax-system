@@ -15,7 +15,7 @@
   "crons": [
     {
       "path": "/api/cron/check-pending-payments/",
-      "schedule": "*/5 * * * *"
+      "schedule": "0 2 * * *"
     }
   ]
 }

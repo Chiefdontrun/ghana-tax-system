@@ -31,6 +31,52 @@
 
 ---
 
+## [Phase G / payment cron] External scheduler endpoint for pending payments — 2026-07-16
+
+**Status:** Complete
+
+**What was built:**
+- Core logic extracted to `PaymentService.run_pending_payment_check(older_than_minutes=5) -> dict` with keys: `checked`, `resolved_success`, `resolved_failed`, `still_pending`, `skipped_no_reference`, `older_than_minutes`.
+- Management command `check_pending_payments` is a thin CLI wrapper over that function.
+- **New primary HTTP endpoint (external cron):**  
+  `POST /api/tax/payments/run-pending-check/`  
+  Auth: header **`X-Cron-Secret: <CRON_SECRET>`** (also accepts `Authorization: Bearer <CRON_SECRET>`). No JWT. 401 if missing/wrong; 503 if `CRON_SECRET` unset. Secret is never logged or echoed.
+- Alternate path kept in sync: `GET|POST /api/cron/check-pending-payments/` (for Vercel daily Hobby cron).
+- Vercel `crons` schedule set to **once daily** `0 2 * * *` (Hobby limit) — **not** sufficient as sole safety net; use external 5‑minute job.
+
+**Env var:**
+- **`CRON_SECRET`** — long random hex (e.g. `python -c "import secrets; print(secrets.token_hex(32))"`). Documented in `backend/.env.example`.
+
+**Operator setup (external scheduler — you must do this outside the repo):**
+1. Generate secret: `python -c "import secrets; print(secrets.token_hex(32))"`
+2. Set `CRON_SECRET=<that value>` in **local `.env`** and **Vercel → Project → Settings → Environment Variables** (Production), redeploy if needed.
+3. Create a job on [cron-job.org](https://cron-job.org) (or EasyCron / GitHub Actions / UptimeRobot HTTP):
+   - **URL:** `https://ghana-tax-system-hh6f.vercel.app/api/tax/payments/run-pending-check/`  
+     (or your production API host)
+   - **Method:** `POST`
+   - **Interval:** every **5 minutes**
+   - **Request header:** `X-Cron-Secret` = same value as `CRON_SECRET` (do not put the secret in the URL query string)
+4. Confirm a successful run returns JSON like:
+   `{"success":true,"data":{"checked":N,"resolved_success":…,"resolved_failed":…,"still_pending":…}}`
+5. Optional CLI: `python manage.py check_pending_payments`
+
+**Files created/modified:**
+- `backend/apps/payments/services.py` — `run_pending_payment_check`
+- `backend/apps/payments/management/commands/check_pending_payments.py` — thin wrapper
+- `backend/apps/payments/views.py` — `RunPendingPaymentCheckView` + `_cron_secret_authorized`
+- `backend/apps/payments/urls.py` — `run-pending-check/`
+- `backend/apps/payments/cron_views.py` — uses shared service
+- `backend/.env.example` — `CRON_SECRET` + operator notes
+- `backend/vercel.json` — daily cron only (Hobby)
+- `backend/tests/test_pending_payment_check.py` — new
+- `LOG.md` — this entry
+
+**Tests:** `pytest tests/test_pending_payment_check.py -q` → **5 passed** (valid secret 200 + summary; missing/invalid secret 401 without running check; 503 if secret unset; service summary shape).
+
+**Open:** Operator must create the external cron account/job and set Vercel `CRON_SECRET` — cannot be completed from this agent alone.
+
+---
+
 ## [Phase F / Step F0-F2] Reports KPIs + admin tax pages — 2026-07-16
 
 **Status:** Complete (backend + admin UI wired; full browser click-through not automated)

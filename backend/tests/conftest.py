@@ -143,6 +143,13 @@ def test_db(mongo_client, test_db_name, mongo_uri, settings):
     except Exception:
         pass  # Redis not available — MongoDB fallback used
 
+    # Isolate reports Redis/LocMem cache between tests (cache keys are not DB-scoped)
+    try:
+        from django.core.cache import cache
+        cache.clear()
+    except Exception:
+        pass
+
     yield db
 
 

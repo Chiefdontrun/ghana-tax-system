@@ -1,43 +1,44 @@
-import logging
+"""
+CLI wrapper: python manage.py check_pending_payments
+
+Core logic lives in PaymentService.run_pending_payment_check() so the HTTP
+cron endpoint and this command stay in sync.
+"""
+
 from django.core.management.base import BaseCommand
-from apps.tax.repository import TaxPaymentRepository
+
 from apps.payments.services import PaymentService
 
-logger = logging.getLogger(__name__)
 
 class Command(BaseCommand):
-    help = 'Polls PENDING_AUTHORIZATION payments older than 5 minutes and verifies them.'
+    help = (
+        "Polls PENDING_AUTHORIZATION payments older than 5 minutes and "
+        "verifies them against the payment provider."
+    )
+
+    def add_arguments(self, parser):
+        parser.add_argument(
+            "--minutes",
+            type=int,
+            default=5,
+            help="Only payments older than this many minutes (default 5).",
+        )
 
     def handle(self, *args, **options):
-        payment_repo = TaxPaymentRepository()
-        payment_service = PaymentService()
+        minutes = options["minutes"]
+        summary = PaymentService().run_pending_payment_check(older_than_minutes=minutes)
 
-        pending_payments = payment_repo.find_pending_older_than(5)
-        count = len(pending_payments)
-        
-        self.stdout.write(self.style.NOTICE(f"Found {count} pending payments older than 5 minutes."))
-
-        for payment in pending_payments:
-            payment_id = payment.get("payment_id")
-            provider_reference = payment.get("provider_reference")
-            
-            if not provider_reference:
-                self.stdout.write(self.style.WARNING(f"Skipping payment {payment_id} (no provider reference)"))
-                continue
-                
-            try:
-                # Re-verify against provider
-                result = payment_service.provider_svc.verify_transaction(provider_reference)
-                
-                if result.status == "SUCCESS":
-                    payment_service._finalize_successful_payment(payment_id, provider_reference)
-                    self.stdout.write(self.style.SUCCESS(f"Payment {payment_id} verified and finalized as SUCCESS."))
-                elif result.status == "FAILED":
-                    reason = result.raw_response.get("message") if result.raw_response else "Failed via verification poller."
-                    payment_service._handle_failed_payment(payment_id, provider_reference, reason)
-                    self.stdout.write(self.style.ERROR(f"Payment {payment_id} verified and marked as FAILED."))
-                else:
-                    self.stdout.write(self.style.NOTICE(f"Payment {payment_id} remains PENDING_AUTHORIZATION."))
-            except Exception as e:
-                logger.error(f"Error checking pending payment {payment_id}: {e}")
-                self.stdout.write(self.style.ERROR(f"Error checking pending payment {payment_id}: {e}"))
+        self.stdout.write(
+            self.style.NOTICE(
+                f"Checked {summary['checked']} pending payment(s) "
+                f"(older than {summary['older_than_minutes']} min)."
+            )
+        )
+        self.stdout.write(
+            self.style.SUCCESS(
+                f"resolved_success={summary['resolved_success']} "
+                f"resolved_failed={summary['resolved_failed']} "
+                f"still_pending={summary['still_pending']} "
+                f"skipped_no_reference={summary['skipped_no_reference']}"
+            )
+        )

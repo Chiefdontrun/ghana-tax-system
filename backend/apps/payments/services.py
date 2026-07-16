@@ -262,6 +262,63 @@ class PaymentService:
         })
         return self.payment_repo.find_by_id(payment_id)
 
+    def run_pending_payment_check(self, older_than_minutes: int = 5) -> dict:
+        """
+        Poll PENDING_AUTHORIZATION payments older than N minutes and re-verify
+        against the payment provider. Shared by management command and HTTP cron.
+
+        Returns a summary dict (never includes secrets):
+          checked, resolved_success, resolved_failed, still_pending, skipped_no_reference
+        """
+        pending_payments = self.payment_repo.find_pending_older_than(older_than_minutes)
+        resolved_success = 0
+        resolved_failed = 0
+        still_pending = 0
+        skipped_no_reference = 0
+
+        for payment in pending_payments:
+            payment_id = payment.get("payment_id")
+            provider_reference = payment.get("provider_reference")
+            if not provider_reference:
+                skipped_no_reference += 1
+                logger.warning(
+                    "Skipping pending payment %s (no provider_reference)",
+                    payment_id,
+                )
+                continue
+
+            try:
+                result = self.provider_svc.verify_transaction(provider_reference)
+                if result.status == "SUCCESS":
+                    self._finalize_successful_payment(payment_id, provider_reference)
+                    resolved_success += 1
+                elif result.status == "FAILED":
+                    reason = (
+                        result.raw_response.get("message")
+                        if result.raw_response
+                        else "Failed via verification poller."
+                    )
+                    self._handle_failed_payment(payment_id, provider_reference, reason)
+                    resolved_failed += 1
+                else:
+                    still_pending += 1
+            except Exception as exc:
+                logger.error(
+                    "Error checking pending payment %s: %s",
+                    payment_id,
+                    exc,
+                )
+                still_pending += 1
+
+        return {
+            "checked": len(pending_payments),
+            "resolved_success": resolved_success,
+            "resolved_failed": resolved_failed,
+            "still_pending": still_pending,
+            "skipped_no_reference": skipped_no_reference,
+            "older_than_minutes": older_than_minutes,
+        }
+
     def submit_otp(self, payment_id: str, trader_id: str, otp: str) -> dict:
         payment = self.payment_repo.find_by_id(payment_id)
         if not payment or payment.get("trader_id") != trader_id:

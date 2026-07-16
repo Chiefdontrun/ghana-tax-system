@@ -1,17 +1,40 @@
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
+from rest_framework.permissions import AllowAny
 from django.core.exceptions import ValidationError as DjangoValidationError
 
 from django.conf import settings
 import hmac
 import hashlib
 import json
+import logging
 
 from apps.auth_app.permissions import IsTraderAuthenticated
 from apps.payments.serializers import InitiatePaymentSerializer, SubmitOtpSerializer
 from apps.payments.services import PaymentService
 from apps.payments.exceptions import PaymentInitiationError, PaymentNotFoundError
+
+logger = logging.getLogger(__name__)
+
+
+def _cron_secret_authorized(request) -> bool:
+    """
+    Compare X-Cron-Secret (or Authorization: Bearer) to settings.CRON_SECRET.
+    Never log the secret value.
+    """
+    expected = getattr(settings, "CRON_SECRET", "") or ""
+    if not expected:
+        return False
+    header_secret = request.headers.get("X-Cron-Secret", "") or ""
+    auth = request.headers.get("Authorization", "") or ""
+    bearer = auth[7:].strip() if auth.lower().startswith("bearer ") else ""
+    # Constant-time compare when both non-empty
+    if header_secret and hmac.compare_digest(header_secret, expected):
+        return True
+    if bearer and hmac.compare_digest(bearer, expected):
+        return True
+    return False
 
 
 class PaymentInitiateView(APIView):
@@ -89,6 +112,40 @@ class SubmitOtpView(APIView):
             return Response({"error": str(e)}, status=status.HTTP_404_NOT_FOUND)
         except PaymentInitiationError as e:
             return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+
+class RunPendingPaymentCheckView(APIView):
+    """
+    POST /api/tax/payments/run-pending-check/
+
+    External scheduler entrypoint (cron-job.org, etc.). Not JWT-authenticated.
+    Requires header: X-Cron-Secret: <CRON_SECRET>
+    """
+
+    authentication_classes = []
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        if not getattr(settings, "CRON_SECRET", ""):
+            return Response(
+                {"success": False, "message": "CRON_SECRET not configured."},
+                status=status.HTTP_503_SERVICE_UNAVAILABLE,
+            )
+        if not _cron_secret_authorized(request):
+            return Response(
+                {"success": False, "message": "Unauthorized."},
+                status=status.HTTP_401_UNAUTHORIZED,
+            )
+
+        summary = PaymentService().run_pending_payment_check(older_than_minutes=5)
+        return Response(
+            {
+                "success": True,
+                "message": "Pending payments checked.",
+                "data": summary,
+            },
+            status=status.HTTP_200_OK,
+        )
 
 
 class PaystackWebhookView(APIView):
