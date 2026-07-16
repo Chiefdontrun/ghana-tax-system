@@ -109,10 +109,11 @@ if _USE_REDIS_CACHE and not _REDIRECT_TO_LOCAL_CACHE:
     }
     RATELIMIT_ENABLE = True
 else:
+    # True LocMem fallback when Redis unavailable or USE_REDIS_CACHE=False
     CACHES = {
         "default": {
-            "BACKEND": "django.core.cache.backends.redis.RedisCache",
-            "LOCATION": REDIS_URL,
+            "BACKEND": "django.core.cache.backends.locmem.LocMemCache",
+            "LOCATION": "ghana_tax_locmem",
             "KEY_PREFIX": "ghana_tax",
             "TIMEOUT": 60,
         }
@@ -155,24 +156,26 @@ DEFAULT_FROM_EMAIL = config(
 )
 RESEND_API_KEY = config("RESEND_API_KEY", default="")
 
-# ─── Brevo SMS (preferred) ────────────────────────────────────────────────────
-# Transactional SMS via https://api.brevo.com/v3/transactionalSMS/send
+# ─── SMS: Arkesel active; Brevo/AT kept as unused config only ─────────────────
+# Selection: ArkeselSMSProvider if ARKESEL_SMS_API_KEY set, else Stub.
+ARKESEL_SMS_API_KEY = config("ARKESEL_SMS_API_KEY", default="")
+ARKESEL_SENDER_ID = config("ARKESEL_SENDER_ID", default="GHREVENUE")
+# Inactive — not selected by NotificationService (class retained for future use)
 BREVO_API_KEY = config("BREVO_API_KEY", default="")
-# Alias accepted for clarity in SMS-only deploys
 BREVO_SMS_API_KEY = config("BREVO_SMS_API_KEY", default="")
 BREVO_SMS_SENDER = config("BREVO_SMS_SENDER", default="GH-REVENUE")
-
-# ─── Legacy SMS fallbacks (used only if Brevo key is empty) ───────────────────
+# Legacy Africa's Talking SMS — not selected; class retained for reference only
 AT_API_KEY = config("AT_API_KEY", default="")
 AT_USERNAME = config("AT_USERNAME", default="")
 AT_SENDER_ID = config("AT_SENDER_ID", default="GH-REVENUE")
-ARKESEL_SMS_API_KEY = config("ARKESEL_SMS_API_KEY", default="")
-ARKESEL_SENDER_ID = config("ARKESEL_SENDER_ID", default="GH-REVENUE")
 
-# Paystack API
+# Paystack MoMo — use test keys only unless production readiness is explicit
 PAYSTACK_SECRET_KEY = config("PAYSTACK_SECRET_KEY", default="")
 PAYSTACK_PUBLIC_KEY = config("PAYSTACK_PUBLIC_KEY", default="")
 PAYSTACK_BASE_URL = config("PAYSTACK_BASE_URL", default="https://api.paystack.co")
+
+# Cron endpoint auth for check_pending_payments HTTP trigger
+CRON_SECRET = config("CRON_SECRET", default="")
 
 # ─── Seed data ────────────────────────────────────────────────────────────────
 SEED_ADMIN_EMAIL = config("SEED_ADMIN_EMAIL", default="sysadmin@demo.gov.gh")

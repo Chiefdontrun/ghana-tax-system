@@ -26,14 +26,15 @@
 | Layer | Technology |
 |---|---|
 | Framework | Django 4.2 + Django REST Framework 3.14 |
-| Language | Python 3.12 |
+| Language | **Python 3.12** (pinned in `backend/runtime.txt` for Vercel). Local 3.14 can run tests with a conftest `BaseContext.__copy__` patch, but **do not** deploy or standardize on 3.14 with Django 4.2. |
 | Primary database | MongoDB (via PyMongo 4.6 — **Django ORM is not used for app data**) |
 | Auxiliary database | SQLite (minimal, only so Django management commands don't break — no app data stored here) |
 | Cache / rate-limit backing | Redis 5 — falls back to `LocMemCache` if unavailable |
 | Auth | Custom JWT (PyJWT 2.8) — access token + refresh token + OTP-pending token |
 | Password hashing | bcrypt 4.1 |
 | Email (OTP delivery) | Resend Python SDK 2.32.2 (`resend` package) |
-| SMS (TIN notification) | Africa's Talking SDK — falls back to a `StubSMSProvider` when `AT_API_KEY` is not set |
+| SMS (TIN / trader OTP / receipts) | **Arkesel SMS** when `ARKESEL_SMS_API_KEY` is set; else Stub. Brevo/AT classes exist but are **not** selected. |
+
 | Config management | `python-decouple` — all secrets via `.env` / environment variables |
 | Rate limiting | `django-ratelimit` 4.1 |
 | CORS | `django-cors-headers` 4.3 |

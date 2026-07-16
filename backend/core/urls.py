@@ -4,6 +4,7 @@ Root URL configuration for ghana-tax-system backend.
 
 from django.urls import path, include
 from apps.reports.urls import traders_urlpatterns
+from apps.payments.cron_views import CheckPendingPaymentsCronView
 
 urlpatterns = [
     # Auth endpoints
@@ -22,4 +23,10 @@ urlpatterns = [
     path("api/trader-auth/", include("apps.trader_auth.urls")),
     # USSD webhook
     path("ussd/", include("apps.ussd.urls")),
+    # Cron / payment safety net (Vercel crons every 5 min; requires CRON_SECRET)
+    path(
+        "api/cron/check-pending-payments/",
+        CheckPendingPaymentsCronView.as_view(),
+        name="cron-check-pending-payments",
+    ),
 ]

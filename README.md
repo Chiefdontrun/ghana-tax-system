@@ -41,11 +41,13 @@ A multi-channel tax registration and monitoring platform for small-scale enterpr
 | Layer            | Technology                                 |
 | ---------------- | ------------------------------------------ |
 | Frontend         | React 18 + TypeScript + Vite + TailwindCSS |
-| Backend          | Python 3.10 + Django REST Framework        |
+| Backend          | **Python 3.12** + Django 4.2 REST Framework (see `backend/runtime.txt` — do **not** use 3.14 without re-validating tests; Django 4.2 template context is incompatible) |
 | Database         | MongoDB 7 (PyMongo)                        |
 | Cache / Sessions | Redis 7                                    |
 | Auth             | JWT (PyJWT + bcrypt)                       |
-| USSD Gateway     | Africa's Talking                           |
+| USSD Gateway     | **Arkesel** shortcode `*928*309#`           |
+| SMS              | **Arkesel** (Brevo code retained, not selected) |
+| Payments         | Paystack Ghana MoMo (**sandbox/test keys**) |
 | Container        | Docker + Docker Compose                    |
 
 ---
