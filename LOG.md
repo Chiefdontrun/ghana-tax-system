@@ -31,6 +31,56 @@
 
 ---
 
+## [Phase F / Step F0-F2] Reports KPIs + admin tax pages — 2026-07-16
+
+**Status:** Complete (backend + admin UI wired; full browser click-through not automated)
+
+**What was built:**
+- **F0:** Fixed `test_auth` / `test_reports` reds — root cause was **missing trailing slashes** on test URLs (`APPEND_SLASH` + POST → RuntimeError, misread as Python 3.14 template `dicts` crash during error-page render). Also: Vercel `runtime.txt` pin **python-3.12**; conftest `BaseContext.__copy__` safety patch for 3.14 local runs; `remaining_attempts` assert uses `int(...)`.
+- **F1:** Tax KPIs on `/api/reports/summary/` under nested `tax` (assessed/collected GHS, collection rate, overdue query-time count, breakdowns by business_type/region/district). Optional filters: `period_label`, `business_type`, `region`, `district` (+ existing `period` for registration KPIs). CSV export `?type=tax|payments|traders` (default traders). Overdue = `due_date < now AND status IN (PENDING, PARTIAL)` — no OVERDUE status job.
+- **F2:** Admin pages: rate schedules (SYS_ADMIN), assessments/payments list, assessment exceptions with resolve-turnover/retry; dashboard tax KPI cards; sidebar + router gated links.
+
+**F0 — Python 3.14 template / auth-reports fix:**
+- Root cause identified: tests hit `/api/auth/login` without `/` → Django `RuntimeError` on APPEND_SLASH for POST; subsequent 404/error template context copy then hits 3.14 `BaseContext.__copy__` bug.
+- Production risk: **low** if clients use trailing slashes (frontend does). Pin Vercel to **Python 3.12** via `backend/runtime.txt`.
+- Fix applied: trailing slashes in tests + runtime pin + optional 3.14 context patch.
+- **test_auth.py / test_reports.py after:** **43 passed, 1 skipped** (perf), **0 failed**.
+
+**Files created/modified:**
+- `backend/runtime.txt` — python-3.12
+- `backend/tests/conftest.py` — 3.14 BaseContext patch
+- `backend/tests/test_auth.py`, `test_reports.py` — trailing slashes
+- `backend/apps/reports/tax_kpis.py` — aggregations + CSV rows
+- `backend/apps/reports/services.py`, `serializers.py`, `views.py`
+- `backend/core/utils/response.py` — optional `meta` / pagination mirror
+- `backend/apps/tax/views.py` — assessment detail loads real payments
+- `backend/tests/test_tax_reports.py`, `test_tax_rbac_f2.py`
+- `frontend/src/features/admin/hooks/useTax.ts`
+- `frontend/.../TaxRateSchedulesPage.tsx`, `TaxPaymentsPage.tsx`, `TaxAssessmentExceptionsPage.tsx`
+- `frontend/.../DashboardPage.tsx`, `Sidebar.tsx`, `router.tsx`
+
+**Deviations from spec:**
+- Tax export lives on same `/api/reports/export/?type=tax|payments` rather than `/api/tax/reports/export/` (cleaner with existing export auth/audit).
+- Manual browser click-through of admin UI not run in this environment (no browser automation); backend role gates covered by tests.
+
+**New facts for next step (Phase G):**
+- Summary tax filters: `period_label`, `business_type`, `region`, `district` (+ `period` for registrations).
+- No separate GET `/api/tax/payments/` list — admin list uses assessments + detail payments.
+- Exception UI: NEEDS_TURNOVER inline GHS → pesewas; MISSING_SCHEDULE link to rate schedules + retry.
+- Rate schedule create uses existing A3 validation (FIXED vs PERCENTAGE mutual exclusivity).
+
+**Open questions:**
+- Whether inactive traders should block resolve-turnover (no inactive guard added; schema has `status: active` only in practice).
+
+**Tests:**
+```
+pytest tests/test_auth.py tests/test_reports.py tests/test_tax_reports.py tests/test_tax_rbac_f2.py tests/test_tax_api.py -q
+→ 60 passed, 1 skipped in ~62s
+```
+F1 math: 10000+5000 pesewas assessed, 4000 collected → 26.67% rate asserted. Overdue count 2 of 4 fixtures.
+
+---
+
 ## [Continuation] Arkesel SMS live key verification — 2026-07-16
 
 **Status:** Complete (API path green). Physical handset delivery requires operator confirmation (this agent cannot see the phone).

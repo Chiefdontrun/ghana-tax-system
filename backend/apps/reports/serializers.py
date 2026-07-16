@@ -11,10 +11,22 @@ VALID_PERIODS = ["7d", "30d", "all"]
 
 
 class ReportsSummaryQuerySerializer(serializers.Serializer):
+    # Registration KPIs period (existing)
     period = serializers.ChoiceField(choices=VALID_PERIODS, default="30d")
+    # Tax KPI filters (Phase F1) — optional
+    period_label = serializers.CharField(required=False, allow_blank=True)
+    business_type = serializers.CharField(required=False, allow_blank=True)
+    region = serializers.CharField(required=False, allow_blank=True)
+    district = serializers.CharField(required=False, allow_blank=True)
 
 
 class ReportsExportQuerySerializer(serializers.Serializer):
+    # type=traders (default) | tax | payments
+    type = serializers.ChoiceField(
+        choices=["traders", "tax", "payments"],
+        default="traders",
+        required=False,
+    )
     period = serializers.ChoiceField(choices=VALID_PERIODS, required=False)
     channel = serializers.ChoiceField(
         choices=["web", "ussd"], required=False, allow_blank=True
@@ -24,6 +36,8 @@ class ReportsExportQuerySerializer(serializers.Serializer):
     district = serializers.CharField(required=False, allow_blank=True)
     date_from = serializers.DateField(required=False)
     date_to = serializers.DateField(required=False)
+    period_label = serializers.CharField(required=False, allow_blank=True)
+    status = serializers.CharField(required=False, allow_blank=True)
 
 
 class TradersListQuerySerializer(serializers.Serializer):

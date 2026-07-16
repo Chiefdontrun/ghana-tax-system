@@ -25,6 +25,9 @@ import TradersPage from "@/features/admin/pages/TradersPage";
 import TraderDetailPage from "@/features/admin/pages/TraderDetailPage";
 import ReportsPage from "@/features/admin/pages/ReportsPage";
 import AuditLogsPage from "@/features/admin/pages/AuditLogsPage";
+import TaxRateSchedulesPage from "@/features/admin/pages/TaxRateSchedulesPage";
+import TaxPaymentsPage from "@/features/admin/pages/TaxPaymentsPage";
+import TaxAssessmentExceptionsPage from "@/features/admin/pages/TaxAssessmentExceptionsPage";
 
 // ── Layouts (Phase 8) ─────────────────────────────────────────────────────────
 import PublicLayout from "@/components/layout/PublicLayout";
@@ -78,6 +81,16 @@ const router = createBrowserRouter([
       { path: "/admin/traders", element: <TradersPage /> },
       { path: "/admin/traders/:id", element: <TraderDetailPage /> },
       { path: "/admin/reports", element: <ReportsPage /> },
+      { path: "/admin/tax/assessments", element: <TaxPaymentsPage /> },
+      { path: "/admin/tax/exceptions", element: <TaxAssessmentExceptionsPage /> },
+      {
+        path: "/admin/tax/rate-schedules",
+        element: (
+          <ProtectedRoute requiredRole="SYS_ADMIN">
+            <TaxRateSchedulesPage />
+          </ProtectedRoute>
+        ),
+      },
       {
         path: "/admin/audit-logs",
         element: (

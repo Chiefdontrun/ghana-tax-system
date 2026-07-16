@@ -180,13 +180,13 @@ class TestCSVExport:
 
 class TestReportsEndpoints:
     def test_summary_endpoint_requires_auth(self, client):
-        resp = client.get("/api/reports/summary")
+        resp = client.get("/api/reports/summary/")
         assert resp.status_code in (401, 403)
 
     def test_summary_endpoint_tax_admin_allowed(self, client, tax_admin_token, test_db):
         _insert_traders(test_db, 3)
         resp = client.get(
-            "/api/reports/summary",
+            "/api/reports/summary/",
             HTTP_AUTHORIZATION=f"Bearer {tax_admin_token}",
         )
         assert resp.status_code == 200
@@ -196,7 +196,7 @@ class TestReportsEndpoints:
     def test_summary_period_param_7d(self, client, sys_admin_token, test_db):
         _insert_traders(test_db, 2)
         resp = client.get(
-            "/api/reports/summary?period=7d",
+            "/api/reports/summary/?period=7d",
             HTTP_AUTHORIZATION=f"Bearer {sys_admin_token}",
         )
         assert resp.status_code == 200
@@ -204,7 +204,7 @@ class TestReportsEndpoints:
 
     def test_summary_invalid_period_returns_400(self, client, sys_admin_token):
         resp = client.get(
-            "/api/reports/summary?period=invalid",
+            "/api/reports/summary/?period=invalid",
             HTTP_AUTHORIZATION=f"Bearer {sys_admin_token}",
         )
         assert resp.status_code == 400
@@ -220,7 +220,7 @@ class TestReportsEndpoints:
 
     def test_trader_detail_endpoint(self, client, tax_admin_token, sample_trader):
         resp = client.get(
-            f"/api/traders/{sample_trader['trader_id']}",
+            f"/api/traders/{sample_trader['trader_id']}/",
             HTTP_AUTHORIZATION=f"Bearer {tax_admin_token}",
         )
         assert resp.status_code == 200
@@ -228,7 +228,7 @@ class TestReportsEndpoints:
 
     def test_trader_detail_not_found(self, client, sys_admin_token):
         resp = client.get(
-            f"/api/traders/{uuid.uuid4()}",
+            f"/api/traders/{uuid.uuid4()}/",
             HTTP_AUTHORIZATION=f"Bearer {sys_admin_token}",
         )
         assert resp.status_code == 404
@@ -236,7 +236,7 @@ class TestReportsEndpoints:
     def test_export_endpoint_returns_csv(self, client, tax_admin_token, test_db):
         _insert_traders(test_db, 2)
         resp = client.get(
-            "/api/reports/export",
+            "/api/reports/export/",
             HTTP_AUTHORIZATION=f"Bearer {tax_admin_token}",
         )
         assert resp.status_code == 200

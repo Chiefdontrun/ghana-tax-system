@@ -8,6 +8,7 @@ Design decisions:
 - Factory fixtures build minimal valid documents without hitting real providers.
 """
 
+import sys
 import uuid
 from datetime import datetime, timezone, timedelta
 from unittest.mock import patch
@@ -16,6 +17,24 @@ import bcrypt
 import pytest
 
 from django.test import Client as DjangoClient
+
+# Python 3.14 + Django 4.2: BaseContext.__copy__ uses super().__copy__() then
+# sets .dicts, which raises AttributeError on 3.14 during error-template render
+# in the test client. Patch only on 3.14+; production should use Python 3.12
+# (see backend/runtime.txt).
+if sys.version_info >= (3, 14):
+    try:
+        from django.template.context import BaseContext
+
+        def _base_context_copy(self):
+            duplicate = object.__new__(type(self))
+            duplicate.__dict__ = self.__dict__.copy()
+            duplicate.dicts = self.dicts[:]
+            return duplicate
+
+        BaseContext.__copy__ = _base_context_copy  # type: ignore[method-assign]
+    except Exception:
+        pass
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────

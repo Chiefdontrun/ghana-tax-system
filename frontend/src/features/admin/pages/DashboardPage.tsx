@@ -4,6 +4,7 @@ import LineChart from "@/components/charts/LineChart";
 import DonutChart from "@/components/charts/DonutChart";
 import StatsCard from "../components/StatsCard";
 import { useReportSummary } from "../hooks/useReports";
+import { useTaxKpis } from "../hooks/useTax";
 import { formatBusinessType } from "@/lib/utils";
 import { colors } from "@/styles/theme";
 import type { Period } from "../hooks/useReports";
@@ -45,6 +46,7 @@ function TrendIcon() {
 
 export default function DashboardPage() {
   const { data, isLoading, period, setPeriod } = useReportSummary();
+  const { tax: taxKpis, isLoading: taxLoading } = useTaxKpis(String(new Date().getFullYear()));
 
   // Derive "today" registrations from daily_trend last entry
   const trend = data?.daily_trend;
@@ -103,6 +105,43 @@ export default function DashboardPage() {
         <StatsCard label="Today's Registrations" value={todayCount} icon={<TrendIcon />} accent="green" isLoading={isLoading} />
         <StatsCard label="Web Registrations" value={data?.by_channel.web ?? 0} icon={<WebIcon />} accent="blue" isLoading={isLoading} />
         <StatsCard label="USSD Registrations" value={data?.by_channel.ussd ?? 0} icon={<UssdIcon />} accent="purple" isLoading={isLoading} />
+      </div>
+
+      {/* Tax KPIs (current calendar year period_label when present on assessments) */}
+      <div>
+        <h2 className="text-sm font-semibold text-cu-muted mb-3 uppercase tracking-wide">
+          Tax collection ({new Date().getFullYear()})
+        </h2>
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+          <StatsCard
+            label="Total assessed (GHS)"
+            value={taxKpis?.total_assessed_ghs ?? 0}
+            icon={<TrendIcon />}
+            accent="red"
+            isLoading={taxLoading}
+          />
+          <StatsCard
+            label="Total collected (GHS)"
+            value={taxKpis?.total_collected_ghs ?? 0}
+            icon={<TrendIcon />}
+            accent="green"
+            isLoading={taxLoading}
+          />
+          <StatsCard
+            label="Collection rate %"
+            value={taxKpis?.collection_rate_pct ?? 0}
+            icon={<TrendIcon />}
+            accent="blue"
+            isLoading={taxLoading}
+          />
+          <StatsCard
+            label="Overdue assessments"
+            value={taxKpis?.overdue_count ?? 0}
+            icon={<UssdIcon />}
+            accent="purple"
+            isLoading={taxLoading}
+          />
+        </div>
       </div>
 
       {/* Charts row */}

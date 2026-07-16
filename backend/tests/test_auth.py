@@ -21,7 +21,7 @@ class TestLoginEndpoint:
         monkeypatch.setattr("apps.auth_app.services._email_service.send_otp", lambda email, code: None)
 
         resp = client.post(
-            "/api/auth/login",
+            "/api/auth/login/",
             data=json.dumps({"email": "sysadmin@test.gov.gh", "password": "TestPass123!"}),
             content_type="application/json",
         )
@@ -36,7 +36,7 @@ class TestLoginEndpoint:
 
     def test_login_wrong_password_returns_401(self, client, sys_admin_doc):
         resp = client.post(
-            "/api/auth/login",
+            "/api/auth/login/",
             data=json.dumps({"email": "sysadmin@test.gov.gh", "password": "WrongPass!"}),
             content_type="application/json",
         )
@@ -44,7 +44,7 @@ class TestLoginEndpoint:
 
     def test_login_unknown_email_returns_401(self, client):
         resp = client.post(
-            "/api/auth/login",
+            "/api/auth/login/",
             data=json.dumps({"email": "ghost@nowhere.com", "password": "anything"}),
             content_type="application/json",
         )
@@ -62,7 +62,7 @@ class TestLoginEndpoint:
             "created_at": datetime.now(timezone.utc),
         })
         resp = client.post(
-            "/api/auth/login",
+            "/api/auth/login/",
             data=json.dumps({"email": "inactive@test.gov.gh", "password": "TestPass123!"}),
             content_type="application/json",
         )
@@ -72,7 +72,7 @@ class TestLoginEndpoint:
         monkeypatch.setattr("apps.auth_app.services.AuthService.generate_otp_code", staticmethod(lambda: "123456"))
         monkeypatch.setattr("apps.auth_app.services._email_service.send_otp", lambda email, code: None)
         client.post(
-            "/api/auth/login",
+            "/api/auth/login/",
             data=json.dumps({"email": "sysadmin@test.gov.gh", "password": "TestPass123!"}),
             content_type="application/json",
         )
@@ -81,7 +81,7 @@ class TestLoginEndpoint:
 
     def test_failed_login_writes_fail_audit_log(self, client, sys_admin_doc, test_db):
         client.post(
-            "/api/auth/login",
+            "/api/auth/login/",
             data=json.dumps({"email": "sysadmin@test.gov.gh", "password": "BadPass"}),
             content_type="application/json",
         )
@@ -122,7 +122,7 @@ class TestOtpFlow:
         monkeypatch.setattr("apps.auth_app.services.AuthService.generate_otp_code", staticmethod(lambda: "123456"))
         monkeypatch.setattr("apps.auth_app.services._email_service.send_otp", lambda email, code: None)
         return client.post(
-            "/api/auth/login",
+            "/api/auth/login/",
             data=json.dumps({"email": "sysadmin@test.gov.gh", "password": "TestPass123!"}),
             content_type="application/json",
         )
@@ -132,7 +132,7 @@ class TestOtpFlow:
         pending_token = login_resp.json()["data"]["pending_token"]
 
         resp = client.post(
-            "/api/auth/verify-otp",
+            "/api/auth/verify-otp/",
             data=json.dumps({"code": "123456"}),
             content_type="application/json",
             HTTP_AUTHORIZATION=f"Bearer {pending_token}",
@@ -150,13 +150,13 @@ class TestOtpFlow:
         pending_token = login_resp.json()["data"]["pending_token"]
 
         resp = client.post(
-            "/api/auth/verify-otp",
+            "/api/auth/verify-otp/",
             data=json.dumps({"code": "999999"}),
             content_type="application/json",
             HTTP_AUTHORIZATION=f"Bearer {pending_token}",
         )
         assert resp.status_code == 400
-        assert resp.json()["errors"]["remaining_attempts"] == 4
+        assert int(resp.json()["errors"]["remaining_attempts"]) == 4
 
     def test_five_failed_attempts_force_restart(self, client, sys_admin_doc, monkeypatch):
         login_resp = self._start_login(client, monkeypatch)
@@ -165,7 +165,7 @@ class TestOtpFlow:
         status_codes = []
         for _ in range(5):
             resp = client.post(
-                "/api/auth/verify-otp",
+                "/api/auth/verify-otp/",
                 data=json.dumps({"code": "999999"}),
                 content_type="application/json",
                 HTTP_AUTHORIZATION=f"Bearer {pending_token}",
@@ -182,7 +182,7 @@ class TestOtpFlow:
         )
 
         resp = client.post(
-            "/api/auth/verify-otp",
+            "/api/auth/verify-otp/",
             data=json.dumps({"code": "123456"}),
             content_type="application/json",
             HTTP_AUTHORIZATION=f"Bearer {pending_token}",
@@ -194,7 +194,7 @@ class TestOtpFlow:
         pending_token = login_resp.json()["data"]["pending_token"]
 
         resp = client.post(
-            "/api/auth/resend-otp",
+            "/api/auth/resend-otp/",
             content_type="application/json",
             HTTP_AUTHORIZATION=f"Bearer {pending_token}",
         )
@@ -206,7 +206,7 @@ class TestOtpFlow:
         pending_token = login_resp.json()["data"]["pending_token"]
 
         resp = client.get(
-            "/api/auth/me",
+            "/api/auth/me/",
             HTTP_AUTHORIZATION=f"Bearer {pending_token}",
         )
         assert resp.status_code in (401, 403)
@@ -218,7 +218,7 @@ class TestTokenRefresh:
         refresh_token = generate_refresh_token("unused")
 
         resp = client.post(
-            "/api/auth/refresh",
+            "/api/auth/refresh/",
             data=json.dumps({"refresh": refresh_token}),
             content_type="application/json",
         )
@@ -229,7 +229,7 @@ class TestTokenRefresh:
         refresh_token = generate_refresh_token(sys_admin_doc["admin_id"])
 
         resp = client.post(
-            "/api/auth/refresh",
+            "/api/auth/refresh/",
             data=json.dumps({"refresh": refresh_token}),
             content_type="application/json",
         )
@@ -238,7 +238,7 @@ class TestTokenRefresh:
 
     def test_token_refresh_invalid_token_returns_401(self, client):
         resp = client.post(
-            "/api/auth/refresh",
+            "/api/auth/refresh/",
             data=json.dumps({"refresh": "not.a.token"}),
             content_type="application/json",
         )
@@ -246,7 +246,7 @@ class TestTokenRefresh:
 
     def test_access_token_cannot_be_used_as_refresh(self, client, sys_admin_doc, sys_admin_token):
         resp = client.post(
-            "/api/auth/refresh",
+            "/api/auth/refresh/",
             data=json.dumps({"refresh": sys_admin_token}),
             content_type="application/json",
         )
@@ -260,7 +260,7 @@ class TestProtectedRoutes:
 
     def test_authenticated_me_endpoint(self, client, sys_admin_token, sys_admin_doc):
         resp = client.get(
-            "/api/auth/me",
+            "/api/auth/me/",
             HTTP_AUTHORIZATION=f"Bearer {sys_admin_token}",
         )
         assert resp.status_code == 200
@@ -277,7 +277,7 @@ class TestRBAC:
 
     def test_tax_admin_cannot_create_admin_user(self, client, tax_admin_token):
         resp = client.post(
-            "/api/admin/users",
+            "/api/admin/users/",
             data=json.dumps({
                 "email": "new@test.gov.gh",
                 "name": "New Admin",

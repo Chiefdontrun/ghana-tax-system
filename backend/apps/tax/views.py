@@ -195,12 +195,13 @@ class AssessmentDetailView(APIView):
     permission_classes = [IsTaxAdmin]
 
     def get(self, request, assessment_id):
+        from apps.tax.repository import TaxPaymentRepository
         repo = TaxAssessmentRepository()
         assessment = repo.find_by_id(assessment_id)
         if not assessment:
             return error_response("Assessment not found.", http_status=404)
-            
-        assessment["payments"] = []
+
+        assessment["payments"] = TaxPaymentRepository().find_by_assessment(assessment_id)
         return success_response(data=assessment)
 
 class AssessmentExceptionListView(APIView):

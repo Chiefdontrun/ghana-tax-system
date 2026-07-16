@@ -43,9 +43,17 @@ class ReportsSummaryView(APIView):
         if not qs.is_valid():
             return error_response("Invalid query parameters.", errors=qs.errors)
 
+        vd = qs.validated_data
+        tax_filters = {
+            "period_label": vd.get("period_label") or "",
+            "business_type": vd.get("business_type") or "",
+            "region": vd.get("region") or "",
+            "district": vd.get("district") or "",
+        }
         summary = _service.get_summary(
-            period=qs.validated_data["period"],
+            period=vd["period"],
             actor=request.admin,
+            tax_filters=tax_filters,
         )
         return success_response(data=summary, message="Summary generated.")
 
@@ -72,8 +80,13 @@ class ReportsExportView(APIView):
             ip_address=_get_ip(request),
         )
 
+        export_type = qs.validated_data.get("type") or "traders"
+        filename = {
+            "tax": "tax_assessments_export.csv",
+            "payments": "tax_payments_export.csv",
+        }.get(export_type, "traders_export.csv")
         response = HttpResponse(csv_content, content_type="text/csv; charset=utf-8")
-        response["Content-Disposition"] = 'attachment; filename="traders_export.csv"'
+        response["Content-Disposition"] = f'attachment; filename="{filename}"'
         return response
 
 

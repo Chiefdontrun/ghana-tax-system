@@ -8,9 +8,27 @@ from rest_framework.views import exception_handler
 from rest_framework import status
 
 
-def success_response(data=None, message: str = "", http_status: int = 200) -> Response:
-    """Return a successful API response."""
+def success_response(
+    data=None,
+    message: str = "",
+    http_status: int = 200,
+    meta: dict | None = None,
+) -> Response:
+    """Return a successful API response. Optional meta for pagination hints."""
     payload = {"success": True, "message": message, "data": data}
+    if meta is not None:
+        payload["meta"] = meta
+        # Mirror common pagination shape when meta has total/page
+        if "total" in meta and "page" in meta:
+            page_size = meta.get("page_size") or 20
+            total = meta.get("total") or 0
+            total_pages = max(1, (total + page_size - 1) // page_size) if page_size else 1
+            payload["pagination"] = {
+                "total": total,
+                "page": meta.get("page", 1),
+                "page_size": page_size,
+                "total_pages": total_pages,
+            }
     return Response(payload, status=http_status)
 
 
