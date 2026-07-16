@@ -17,9 +17,34 @@ import bcrypt
 from django.core.management.base import BaseCommand
 from django.conf import settings
 
-from core.utils.mongo import get_collection, ADMINS, TRADERS, BUSINESSES, LOCATIONS, AUDIT_LOGS
+from core.utils.mongo import (
+    get_collection,
+    ADMINS,
+    TRADERS,
+    BUSINESSES,
+    LOCATIONS,
+    AUDIT_LOGS,
+    TAX_RATE_SCHEDULES,
+    TAX_ASSESSMENTS,
+    TAX_PAYMENTS,
+    TAX_ASSESSMENT_EXCEPTIONS,
+)
 
 logger = logging.getLogger(__name__)
+
+# Tax seed year
+TAX_SEED_YEAR = 2026
+# Skip Assembly-wide schedule for this type → MISSING_SCHEDULE exceptions
+MISSING_SCHEDULE_BUSINESS_TYPE = "artisan"
+# Percentage-of-turnover types (others with schedules use FIXED)
+PERCENTAGE_BUSINESS_TYPES = {"electronics", "clothing"}
+FIXED_FEES_PESEWAS = {
+    "food_vendor": 15000,   # GHS 150
+    "services": 22000,      # GHS 220
+    "agriculture": 10000,   # GHS 100
+    "wholesale": 30000,     # GHS 300
+    "retail": 18000,        # GHS 180
+}
 
 # ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -97,6 +122,7 @@ class Command(BaseCommand):
         admin_docs = self._seed_admins()
         trader_docs = self._seed_traders(location_docs)
         self._seed_audit_logs(admin_docs, trader_docs)
+        self._seed_tax_data(admin_docs)
 
         self.stdout.write(self.style.SUCCESS("\n✅ Seed complete.\n"))
 
@@ -339,3 +365,228 @@ class Command(BaseCommand):
             col.insert_many(logs)
 
         self.stdout.write(f"  Audit    : {len(logs)} created, {existing} already existed")
+
+    # ── Tax schedules, assessments, payments, exceptions ─────────────────────
+
+    def _seed_tax_data(self, admins: list[dict]) -> None:
+        """
+        Seed BOP rate schedules + generate assessments via TaxService,
+        open exceptions for demo, and a few SUCCESS payments for KPI demo.
+        Idempotent on schedules (unique by type/scope/year) and assessments
+        (TaxService already idempotent per business/period).
+        """
+        from apps.tax.services import TaxService
+        from apps.tax.exceptions import TurnoverRequiredError, RateScheduleNotFoundError
+
+        admin_id = (admins[0].get("admin_id") if admins else None) or "seed-system"
+        schedule_col = get_collection(TAX_RATE_SCHEDULES)
+        business_col = get_collection(BUSINESSES)
+
+        # Distinct business types from live data (fallback to constants)
+        types_in_db = business_col.distinct("business_type")
+        business_types = sorted(set(types_in_db) or set(BUSINESS_TYPES))
+
+        # ── 1. Rate schedules ───────────────────────────────────────────────
+        schedules_created = 0
+        for btype in business_types:
+            if btype == MISSING_SCHEDULE_BUSINESS_TYPE:
+                # Deliberately no Assembly-wide schedule → MISSING_SCHEDULE queue
+                continue
+
+            existing = schedule_col.find_one({
+                "tax_category": "BOP",
+                "business_type": btype,
+                "effective_year": TAX_SEED_YEAR,
+                "region": None,
+                "district": None,
+            }, {"_id": 0})
+            if existing:
+                continue
+
+            if btype in PERCENTAGE_BUSINESS_TYPES:
+                doc = {
+                    "schedule_id": str(uuid.uuid4()),
+                    "tax_category": "BOP",
+                    "business_type": btype,
+                    "region": None,
+                    "district": None,
+                    "rate_type": "PERCENTAGE_TURNOVER",
+                    "fixed_amount": None,
+                    "percentage_rate": 3.0,
+                    "min_amount": 5000,
+                    "max_amount": 200000,
+                    "period": "ANNUAL",
+                    "effective_year": TAX_SEED_YEAR,
+                    "is_active": True,
+                    "created_by": admin_id,
+                    "created_at": _now(),
+                    "updated_at": _now(),
+                }
+            else:
+                fee = FIXED_FEES_PESEWAS.get(btype, 15000)
+                doc = {
+                    "schedule_id": str(uuid.uuid4()),
+                    "tax_category": "BOP",
+                    "business_type": btype,
+                    "region": None,
+                    "district": None,
+                    "rate_type": "FIXED",
+                    "fixed_amount": fee,
+                    "percentage_rate": None,
+                    "min_amount": None,
+                    "max_amount": None,
+                    "period": "ANNUAL",
+                    "effective_year": TAX_SEED_YEAR,
+                    "is_active": True,
+                    "created_by": admin_id,
+                    "created_at": _now(),
+                    "updated_at": _now(),
+                }
+            schedule_col.insert_one(doc)
+            schedules_created += 1
+
+        # District override: Accra Metropolitan food_vendor (higher fee) if that district exists
+        district_override_created = 0
+        if any(t.get("district") == "Accra Metropolitan" for t in get_collection(TRADERS).find({}, {"district": 1})):
+            ov = schedule_col.find_one({
+                "tax_category": "BOP",
+                "business_type": "food_vendor",
+                "effective_year": TAX_SEED_YEAR,
+                "district": "Accra Metropolitan",
+            })
+            if not ov:
+                schedule_col.insert_one({
+                    "schedule_id": str(uuid.uuid4()),
+                    "tax_category": "BOP",
+                    "business_type": "food_vendor",
+                    "region": "Greater Accra",
+                    "district": "Accra Metropolitan",
+                    "rate_type": "FIXED",
+                    "fixed_amount": 28000,  # GHS 280 — district > assembly
+                    "percentage_rate": None,
+                    "min_amount": None,
+                    "max_amount": None,
+                    "period": "ANNUAL",
+                    "effective_year": TAX_SEED_YEAR,
+                    "is_active": True,
+                    "created_by": admin_id,
+                    "created_at": _now(),
+                    "updated_at": _now(),
+                })
+                district_override_created = 1
+
+        self.stdout.write(
+            f"  Tax sched: {schedules_created} assembly-wide + {district_override_created} district override "
+            f"(skipped type={MISSING_SCHEDULE_BUSINESS_TYPE!r} for MISSING_SCHEDULE demo)"
+        )
+
+        # ── 2. Assessments via real TaxService ─────────────────────────────
+        tax = TaxService()
+        period = str(TAX_SEED_YEAR)
+        created = 0
+        skipped = 0
+        needs_turnover_n = 0
+        missing_schedule_n = 0
+        # Leave first few percentage businesses without turnover for NEEDS_TURNOVER
+        pct_left_for_exception = 2
+
+        businesses = list(business_col.find({}, {"_id": 0}))
+        for business in businesses:
+            btype = business.get("business_type")
+            bid = business["business_id"]
+
+            existing = get_collection(TAX_ASSESSMENTS).find_one({
+                "business_id": bid,
+                "tax_category": "BOP",
+                "period_label": period,
+            })
+            if existing:
+                skipped += 1
+                continue
+
+            turnover = None
+            if btype in PERCENTAGE_BUSINESS_TYPES:
+                if pct_left_for_exception > 0:
+                    pct_left_for_exception -= 1
+                    turnover = None  # force NEEDS_TURNOVER
+                else:
+                    turnover = random.randint(1_500_000, 4_000_000)  # GHS 15k–40k
+
+            try:
+                tax.generate_assessment(
+                    business_id=bid,
+                    tax_category="BOP",
+                    period_label=period,
+                    channel_generated="seed_demo",
+                    declared_turnover_pesewas=turnover,
+                    audit_log=False,
+                    actor_id=admin_id,
+                )
+                created += 1
+            except TurnoverRequiredError:
+                tax.log_assessment_exception(bid, "BOP", period, "NEEDS_TURNOVER")
+                needs_turnover_n += 1
+            except RateScheduleNotFoundError:
+                tax.log_assessment_exception(bid, "BOP", period, "MISSING_SCHEDULE")
+                missing_schedule_n += 1
+            except Exception as exc:
+                logger.warning("Seed assessment failed for %s: %s", bid, exc)
+
+        self.stdout.write(
+            f"  Tax assess: {created} generated via TaxService, {skipped} already existed, "
+            f"NEEDS_TURNOVER={needs_turnover_n}, MISSING_SCHEDULE={missing_schedule_n}"
+        )
+
+        # ── 3. Sample SUCCESS payments for KPI demo ────────────────────────
+        pay_col = get_collection(TAX_PAYMENTS)
+        assess_col = get_collection(TAX_ASSESSMENTS)
+        pending = list(
+            assess_col.find({"status": "PENDING", "period_label": period}, {"_id": 0})
+            .limit(5)
+        )
+        payments_created = 0
+        channels = ["web", "ussd"]
+        for i, assessment in enumerate(pending[:3]):
+            # Avoid re-seeding if this assessment already has a SUCCESS payment
+            if pay_col.find_one({"assessment_id": assessment["assessment_id"], "status": "SUCCESS"}):
+                continue
+            due = int(assessment.get("amount_due") or 0)
+            if due <= 0:
+                continue
+            # First: full PAID; second: PARTIAL (~50%); third: full PAID
+            if i == 1:
+                amount = max(1, due // 2)
+                new_status = "PARTIAL"
+            else:
+                amount = due
+                new_status = "PAID"
+            payment_id = str(uuid.uuid4())
+            pay_col.insert_one({
+                "payment_id": payment_id,
+                "assessment_id": assessment["assessment_id"],
+                "trader_id": assessment.get("trader_id"),
+                "amount_pesewas": amount,
+                "status": "SUCCESS",
+                "channel": channels[i % 2],
+                "momo_network": "mtn",
+                "provider": "paystack_seed",
+                "provider_reference": f"seed-{payment_id[:8]}",
+                "phone_number": "+233200000000",
+                "created_at": _now(),
+                "updated_at": _now(),
+            })
+            assess_col.update_one(
+                {"assessment_id": assessment["assessment_id"]},
+                {"$set": {"amount_paid": amount, "status": new_status, "updated_at": _now()}},
+            )
+            payments_created += 1
+
+        self.stdout.write(f"  Tax pays : {payments_created} SUCCESS seed payment(s) applied")
+
+        # Summary counts for log
+        self.stdout.write(
+            f"  Tax totals now: schedules={schedule_col.count_documents({})}, "
+            f"assessments={assess_col.count_documents({})}, "
+            f"payments={pay_col.count_documents({})}, "
+            f"exceptions_open={get_collection(TAX_ASSESSMENT_EXCEPTIONS).count_documents({'status': 'OPEN'})}"
+        )

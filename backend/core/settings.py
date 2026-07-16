@@ -119,6 +119,11 @@ else:
         }
     }
     RATELIMIT_ENABLE = False
+    # LocMem is process-local; django-ratelimit treats that as E003 — silence for local/dev
+    SILENCED_SYSTEM_CHECKS = list(globals().get("SILENCED_SYSTEM_CHECKS", [])) + [
+        "django_ratelimit.E003",
+        "django_ratelimit.W001",
+    ]
 
 # Reports summary cache TTL (seconds) — configurable via env (spec: 30-60s)
 REPORTS_CACHE_TTL = config("REPORTS_CACHE_TTL", default=45, cast=int)

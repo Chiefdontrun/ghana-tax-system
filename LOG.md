@@ -31,6 +31,97 @@
 
 ---
 
+## [Seed] Production Atlas tax seed run — 2026-07-16
+
+**Status:** Complete
+
+**Target:** MongoDB Atlas `cluster0.chagh64.mongodb.net` / `ghana_tax_db` (via backend `.env` `MONGO_URI`)
+
+**Command:** `python manage.py seed_demo_data` (idempotent)
+
+**Results:**
+| Item | Count |
+|------|------:|
+| Locations | 0 new (10 existing) |
+| Admins | 0 new (3 existing) |
+| Traders | 0 new (106 existing) |
+| Tax schedules | **8 total** (already present from prior seed logic; 0 new this run) |
+| Assessments generated this run | **63** via `TaxService` |
+| Assessments already existed | 24 |
+| Assessments total after | **90** |
+| NEEDS_TURNOVER (this run) | **2** |
+| MISSING_SCHEDULE (this run) | **17** |
+| Exceptions OPEN total | **26** |
+| SUCCESS seed payments applied | **3** |
+| Payments total | **3** |
+
+**KPI check (`period_label=2026`):** non-zero assessed + collected after seed (see verification command output in session).
+
+**Notes:**
+- Production web app on Vercel now has tax schedules, assessments, exceptions, and sample payments for admin UI / reports demos.
+- Re-running seed is safe; assessments and schedules skip duplicates.
+
+---
+
+## [Seed] Tax rate schedules + assessments via TaxService — 2026-07-16
+
+**Status:** Complete
+
+**What was built:**
+- Extended existing `apps/registration/management/commands/seed_demo_data.py` (and synced `backend/management/commands/seed_demo_data.py`) with `_seed_tax_data()` — no second seed convention.
+- Invoked after admins/traders/audit seed.
+
+**Rate schedules (2026 BOP):**
+| Kind | Count / detail |
+|------|----------------|
+| Assembly-wide | **7** (all seeded `business_type`s except `artisan`) |
+| FIXED | food_vendor 15000, services 22000, agriculture 10000, wholesale 30000, retail 18000 pesewas |
+| PERCENTAGE_TURNOVER | electronics, clothing — 3%, min 5000, max 200000 |
+| District override | **1** — food_vendor / Accra Metropolitan FIXED 28000 (demonstrates district > assembly) |
+| Deliberately missing | **artisan** — no schedule → MISSING_SCHEDULE exceptions |
+
+`created_by` = first seeded admin_id.
+
+**Assessments (via real `TaxService.generate_assessment`, not raw inserts):**
+| Metric | Count |
+|--------|------:|
+| Generated | **84** |
+| NEEDS_TURNOVER (OPEN) | **2** (percentage types left without turnover) |
+| MISSING_SCHEDULE (OPEN) | **14** (artisan businesses) |
+| Already existed | 0 (clean DB) |
+
+**Payments (seed SUCCESS rows + assessment status update):**
+| Metric | Count |
+|--------|------:|
+| SUCCESS payments | **3** (channels web / ussd / web) |
+| Assessment statuses | includes **PAID** and **PARTIAL** |
+
+**Verification (local clean DB `ghana_tax_seed_demo`):**
+```
+python manage.py seed_demo_data
+→ schedules=8, assessments=84, payments=3, exceptions_open=16
+status Counter: PENDING=81, PAID=2, PARTIAL=1
+exceptions: MISSING_SCHEDULE=14, NEEDS_TURNOVER=2
+aggregate_tax_kpis(period_label=2026):
+  total_assessed_ghs=29243.98  total_collected_ghs=275.0  collection_rate_pct=0.94
+```
+Exceptions queue has **both** `NEEDS_TURNOVER` and `MISSING_SCHEDULE`. Reports KPIs non-zero.
+
+**Run:**
+```bash
+python manage.py seed_demo_data   # idempotent; tax section skips existing schedules/assessments
+```
+
+**Files modified:**
+- `backend/apps/registration/management/commands/seed_demo_data.py`
+- `backend/management/commands/seed_demo_data.py` (copy)
+- `backend/core/settings.py` — silence django_ratelimit E003/W001 on LocMem so seed works offline Redis
+- `LOG.md`
+
+**Deviations:** None material. Batch used per-business `generate_assessment` loop (not only `generate_annual_assessments_batch`) so turnover can be supplied selectively for percentage types while still leaving NEEDS_TURNOVER samples.
+
+---
+
 ## [Phase G / payment cron] External scheduler endpoint for pending payments — 2026-07-16
 
 **Status:** Complete
