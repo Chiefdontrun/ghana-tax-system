@@ -31,6 +31,96 @@
 
 ---
 
+## [Seed] Rate schedules + assessments with income brackets + affordability cap demo — 2026-07-16
+
+**Status:** ✅ Complete
+
+**Command:** `python manage.py seed_demo_data` (extended existing script; no parallel seeder)
+
+**Target:** MongoDB Atlas `ghana_tax_db` (local `.env` `MONGO_URI`)
+
+### 1. Rate schedules (Assembly-wide BOP 2026 ANNUAL active)
+
+| Kind | Types | Detail |
+|------|-------|--------|
+| **FIXED** (4) | `hawker`, `food_vendor`, `services`, `agriculture` | hawker **200000** pesewas (GHC 2,000 — deliberately above BRACKET_1 25% cap of GHC 750); food 15000; services 22000; agriculture 10000 |
+| **PERCENTAGE_TURNOVER** (4) | `clothing`, `electronics`, `wholesale`, `retail` | rate **3.0%**, min **5000** (GHC 50), max **200000** (GHC 2,000) |
+| **Deliberately missing** | `artisan` | → real `MISSING_SCHEDULE` exceptions |
+| District override | food_vendor / Accra Metropolitan | still present if previously seeded (FIXED 28000) |
+
+**Note on hawker fee:** Spec example “GHC 200” would **not** clamp (cap = GHC 750). Seed uses **GHC 2,000** so the affordability clamp is visible in admin assessments + audit.
+
+**This run:** 1 schedule created (hawker), 2 updated (wholesale/retail → PERCENTAGE), 0 new district override. **schedule_types** include **hawker**.
+
+### 2. Seeded traders / businesses — brackets
+
+| Metric | Count |
+|--------|------:|
+| Bracket backfill/update | **108** |
+| New dedicated hawker demo trader | **1** (`Akua Hawker Demo`, hawker + BRACKET_1) |
+| With `income_bracket` | **109** |
+| Legacy **no** `income_bracket` | **1** |
+| BRACKET_1 / 2 / 3 / 4 | **28 / 27 / 27 / 27** |
+| Hawker + BRACKET_1 | **≥1** (cap demo) |
+
+### 3. Assessments via real `TaxService.generate_assessment`
+
+| Metric | Count / note |
+|--------|----------------|
+| Generated this run | **6** |
+| Already OK (skipped) | **85** |
+| Stale regen (cap / bracket) | **≈4** |
+| NEEDS_TURNOVER this run | **2** |
+| MISSING_SCHEDULE this run | **17** |
+| Assessments total | **94** |
+| **ASSESSMENT_CAPPED_AFFORDABILITY** audits | **1** ✅ |
+| Cap sample | `amount_due=75000` (original 200000, BRACKET_1, hawker schedule) |
+| OPEN NEEDS_TURNOVER | **3** ✅ |
+| OPEN MISSING_SCHEDULE | **24** ✅ |
+
+Cap audit details (verified):  
+`original_amount_due=200000`, `capped_amount_due=75000`, `income_bracket=BRACKET_1`.
+
+### 4. Payments
+
+| Metric | Count |
+|--------|------:|
+| SUCCESS payments applied this run | **2** (channels web / ussd alternate) |
+| SUCCESS payments total | **8** |
+| Status mix 2026 | PAID=6, PARTIAL=2, PENDING=86 |
+
+### 5. Reports KPIs (`aggregate_tax_kpis(period_label=2026)`)
+
+| KPI | Value |
+|-----|------:|
+| total_assessed_ghs | **31879.95** ✅ non-zero |
+| total_collected_ghs | **3224.39** ✅ non-zero |
+| collection_rate_pct | **10.11** |
+| assessment_count | **94** |
+
+### Four-bullet confirmation
+
+| Requirement | Confirmed |
+|-------------|-----------|
+| Schedules across types **including hawker** | ✅ 8 assembly types listed above |
+| Assessments mix + **visibly capped** amount (75000) | ✅ + audit trail |
+| Exceptions queue: **NEEDS_TURNOVER** and **MISSING_SCHEDULE** | ✅ 3 + 24 OPEN |
+| Reports summary non-zero assessed/collected | ✅ |
+
+**Files modified:**
+- `backend/apps/registration/management/commands/seed_demo_data.py` — brackets, hawker FIXED cap-demo, PCT types, TaxService path, payments, KPI log
+- `backend/management/commands/seed_demo_data.py` — kept in sync
+- `LOG.md` — this entry
+
+**Run:**
+```bash
+cd backend && python manage.py seed_demo_data
+```
+
+**Deviations:** Hawker FIXED = GHC 2,000 (not GHC 200) so BRACKET_1 25% cap (GHC 750) actually fires. Wholesale/retail moved to PERCENTAGE_TURNOVER to fill remaining types after 4 FIXED.
+
+---
+
 ## [Phase] Pre-TIN income bracket + hawker-first menu + affordability cap — 2026-07-16
 
 **Status:** ✅ Complete

@@ -1,7 +1,9 @@
 """
 seed_demo_data management command.
-Creates demo admins, locations, traders, businesses, and audit logs.
-Idempotent — skips any record that already exists.
+Creates demo admins, locations, traders, businesses, audit logs,
+BOP rate schedules (incl. hawker), income_bracket spread, assessments via
+TaxService (affordability cap + bracket turnover), exceptions, and sample payments.
+Idempotent — skips or upgrades records as needed for a realistic demo DB.
 
 Usage:
     python manage.py seed_demo_data
@@ -36,20 +38,24 @@ logger = logging.getLogger(__name__)
 TAX_SEED_YEAR = 2026
 # Skip Assembly-wide schedule for this type → MISSING_SCHEDULE exceptions
 MISSING_SCHEDULE_BUSINESS_TYPE = "artisan"
-# Percentage-of-turnover types (others with schedules use FIXED)
-PERCENTAGE_BUSINESS_TYPES = {"electronics", "clothing"}
+# FIXED rate types (3–4). Hawker fee is deliberately above BRACKET_1 25% cap
+# (cap = GHC 750 = 75000 pesewas) so the affordability clamp is visible in demos.
+# Spec example said "GHC 200"; we use GHC 2,000 because only amounts > GHC 750 clamp.
 FIXED_FEES_PESEWAS = {
-    "food_vendor": 15000,   # GHS 150
-    "services": 22000,      # GHS 220
-    "agriculture": 10000,   # GHS 100
-    "wholesale": 30000,     # GHS 300
-    "retail": 18000,        # GHS 180
+    "hawker": 200_000,      # GHC 2,000 — exceeds BRACKET_1 cap → ASSESSMENT_CAPPED_AFFORDABILITY
+    "food_vendor": 15_000,  # GHC 150
+    "services": 22_000,     # GHC 220
+    "agriculture": 10_000,  # GHC 100
 }
+# Remaining scheduled types use PERCENTAGE_TURNOVER (3%, min GHC 50, max GHC 2,000)
+PERCENTAGE_BUSINESS_TYPES = {"clothing", "electronics", "wholesale", "retail"}
+INCOME_BRACKET_CODES = ("BRACKET_1", "BRACKET_2", "BRACKET_3", "BRACKET_4")
 
 # ── Constants ─────────────────────────────────────────────────────────────────
 
+# Hawker first (matches registration menu presentation order).
 BUSINESS_TYPES = [
-    "food_vendor", "clothing", "electronics", "services",
+    "hawker", "food_vendor", "clothing", "electronics", "services",
     "agriculture", "wholesale", "retail", "artisan",
 ]
 
@@ -122,6 +128,8 @@ class Command(BaseCommand):
         admin_docs = self._seed_admins()
         trader_docs = self._seed_traders(location_docs)
         self._seed_audit_logs(admin_docs, trader_docs)
+        # Ensure brackets / hawker demo even when traders already existed
+        self._ensure_income_brackets_and_hawker_demo(location_docs)
         self._seed_tax_data(admin_docs)
 
         self.stdout.write(self.style.SUCCESS("\n✅ Seed complete.\n"))
@@ -250,9 +258,22 @@ class Command(BaseCommand):
             used_tins.add(tin)
 
             loc = random.choice(locations)
-            btype = random.choice(BUSINESS_TYPES)
+            # Spread types; force first new trader as hawker for menu/cap demos
+            if i == 0:
+                btype = "hawker"
+            else:
+                btype = BUSINESS_TYPES[i % len(BUSINESS_TYPES)]
             channel = channels[i % len(channels)]
             created_at = _random_past(90)
+
+            # Spread income brackets; last new trader of this run is legacy (no bracket)
+            if i == to_create - 1 and to_create > 1:
+                income_bracket = None  # pre-existing / legacy simulation
+            else:
+                income_bracket = INCOME_BRACKET_CODES[i % len(INCOME_BRACKET_CODES)]
+            # Hawker + BRACKET_1 so affordability cap can fire against excessive FIXED fee
+            if btype == "hawker" and income_bracket is not None:
+                income_bracket = "BRACKET_1"
 
             trader_id = str(uuid.uuid4())
             trader_doc = {
@@ -278,6 +299,8 @@ class Command(BaseCommand):
                 "location_id": loc["location_id"],
                 "created_at": created_at,
             }
+            if income_bracket is not None:
+                business_doc["income_bracket"] = income_bracket
 
             try:
                 trader_col.insert_one(trader_doc)
@@ -366,31 +389,145 @@ class Command(BaseCommand):
 
         self.stdout.write(f"  Audit    : {len(logs)} created, {existing} already existed")
 
+    # ── Income brackets + dedicated hawker demo ──────────────────────────────
+
+    def _ensure_income_brackets_and_hawker_demo(self, locations: list[dict]) -> None:
+        """
+        Backfill income_bracket across businesses (all four codes), leave one
+        legacy business without a bracket, and guarantee a hawker + BRACKET_1
+        row for the affordability-cap demo. Safe when traders already exist.
+        """
+        trader_col = get_collection(TRADERS)
+        business_col = get_collection(BUSINESSES)
+
+        businesses = list(business_col.find({}, {"_id": 0}))
+        if not businesses:
+            self.stdout.write("  Brackets : no businesses yet — skip")
+            return
+
+        # Leave the oldest business without a bracket (legacy simulation)
+        legacy_id = businesses[0]["business_id"]
+        updated = 0
+        for i, biz in enumerate(businesses):
+            bid = biz["business_id"]
+            if bid == legacy_id:
+                # Explicitly clear if a prior seed set a bracket
+                if biz.get("income_bracket") is not None:
+                    business_col.update_one(
+                        {"business_id": bid},
+                        {"$unset": {"income_bracket": ""}},
+                    )
+                    updated += 1
+                continue
+            if biz.get("income_bracket") in INCOME_BRACKET_CODES:
+                continue
+            # Hawker businesses get BRACKET_1 (cap demo); others cycle all four
+            if biz.get("business_type") == "hawker":
+                bracket = "BRACKET_1"
+            else:
+                bracket = INCOME_BRACKET_CODES[i % len(INCOME_BRACKET_CODES)]
+            business_col.update_one(
+                {"business_id": bid},
+                {"$set": {"income_bracket": bracket}},
+            )
+            updated += 1
+
+        # Dedicated hawker + BRACKET_1 if none exists
+        hawker_b1 = business_col.find_one({
+            "business_type": "hawker",
+            "income_bracket": "BRACKET_1",
+        })
+        created_hawker = 0
+        if not hawker_b1:
+            loc = locations[0] if locations else {
+                "location_id": str(uuid.uuid4()),
+                "region": "Greater Accra",
+                "district": "Accra Metropolitan",
+                "market_name": "Accra Central Market",
+            }
+            trader_id = str(uuid.uuid4())
+            tin = _generate_tin()
+            while trader_col.count_documents({"tin_number": tin}, limit=1) > 0:
+                tin = _generate_tin()
+            phone = _normalize_phone(_random_ghana_phone())
+            while trader_col.count_documents({"phone_number": phone}, limit=1) > 0:
+                phone = _normalize_phone(_random_ghana_phone())
+            created_at = _now()
+            trader_col.insert_one({
+                "trader_id": trader_id,
+                "name": "Akua Hawker Demo",
+                "phone_number": phone,
+                "tin_number": tin,
+                "channel": "web",
+                "status": "active",
+                "business_type": "hawker",
+                "region": loc.get("region", "Greater Accra"),
+                "district": loc.get("district", "Accra Metropolitan"),
+                "market_name": loc.get("market_name", "Accra Central Market"),
+                "location_id": loc.get("location_id"),
+                "created_at": created_at,
+                "updated_at": created_at,
+            })
+            business_col.insert_one({
+                "business_id": str(uuid.uuid4()),
+                "owner_trader_id": trader_id,
+                "business_type": "hawker",
+                "income_bracket": "BRACKET_1",
+                "tin_number": tin,
+                "location_id": loc.get("location_id"),
+                "created_at": created_at,
+            })
+            created_hawker = 1
+
+        # Counts for log
+        with_bracket = business_col.count_documents({"income_bracket": {"$in": list(INCOME_BRACKET_CODES)}})
+        without = business_col.count_documents({
+            "$or": [
+                {"income_bracket": {"$exists": False}},
+                {"income_bracket": None},
+            ]
+        })
+        by_bracket = {
+            code: business_col.count_documents({"income_bracket": code})
+            for code in INCOME_BRACKET_CODES
+        }
+        self.stdout.write(
+            f"  Brackets : backfilled/updated={updated}, new_hawker_demo={created_hawker}, "
+            f"with_bracket={with_bracket}, legacy_no_bracket={without}, spread={by_bracket}"
+        )
+
     # ── Tax schedules, assessments, payments, exceptions ─────────────────────
 
     def _seed_tax_data(self, admins: list[dict]) -> None:
         """
-        Seed BOP rate schedules + generate assessments via TaxService,
-        open exceptions for demo, and a few SUCCESS payments for KPI demo.
-        Idempotent on schedules (unique by type/scope/year) and assessments
-        (TaxService already idempotent per business/period).
+        Seed BOP rate schedules + generate assessments via real TaxService
+        (bracket representative turnover + affordability cap), open exceptions
+        for demo, and a few SUCCESS payments for KPI demo.
         """
         from apps.tax.services import TaxService
         from apps.tax.exceptions import TurnoverRequiredError, RateScheduleNotFoundError
+        from apps.tax.constants import (
+            get_representative_annual_income_pesewas,
+            affordability_cap_pesewas,
+        )
 
         admin_id = (admins[0].get("admin_id") if admins else None) or "seed-system"
         schedule_col = get_collection(TAX_RATE_SCHEDULES)
         business_col = get_collection(BUSINESSES)
+        assess_col = get_collection(TAX_ASSESSMENTS)
+        pay_col = get_collection(TAX_PAYMENTS)
+        exc_col = get_collection(TAX_ASSESSMENT_EXCEPTIONS)
+        audit_col = get_collection(AUDIT_LOGS)
 
-        # Distinct business types from live data (fallback to constants)
-        types_in_db = business_col.distinct("business_type")
-        business_types = sorted(set(types_in_db) or set(BUSINESS_TYPES))
+        # All seeded types + any already in DB
+        types_in_db = set(business_col.distinct("business_type") or [])
+        business_types = sorted(types_in_db | set(BUSINESS_TYPES))
 
-        # ── 1. Rate schedules ───────────────────────────────────────────────
+        # ── 1. Rate schedules (assembly-wide per type except artisan) ───────
         schedules_created = 0
+        schedules_updated = 0
         for btype in business_types:
             if btype == MISSING_SCHEDULE_BUSINESS_TYPE:
-                # Deliberately no Assembly-wide schedule → MISSING_SCHEDULE queue
                 continue
 
             existing = schedule_col.find_one({
@@ -399,33 +536,14 @@ class Command(BaseCommand):
                 "effective_year": TAX_SEED_YEAR,
                 "region": None,
                 "district": None,
-            }, {"_id": 0})
-            if existing:
-                continue
+            })
 
-            if btype in PERCENTAGE_BUSINESS_TYPES:
-                doc = {
-                    "schedule_id": str(uuid.uuid4()),
-                    "tax_category": "BOP",
-                    "business_type": btype,
-                    "region": None,
-                    "district": None,
-                    "rate_type": "PERCENTAGE_TURNOVER",
-                    "fixed_amount": None,
-                    "percentage_rate": 3.0,
-                    "min_amount": 5000,
-                    "max_amount": 200000,
-                    "period": "ANNUAL",
-                    "effective_year": TAX_SEED_YEAR,
-                    "is_active": True,
-                    "created_by": admin_id,
-                    "created_at": _now(),
-                    "updated_at": _now(),
-                }
-            else:
-                fee = FIXED_FEES_PESEWAS.get(btype, 15000)
-                doc = {
-                    "schedule_id": str(uuid.uuid4()),
+            # FIXED map → fixed; PERCENTAGE set → percentage; else default FIXED
+            use_fixed = btype not in PERCENTAGE_BUSINESS_TYPES
+
+            if use_fixed:
+                fee = FIXED_FEES_PESEWAS.get(btype, 15_000)
+                payload = {
                     "tax_category": "BOP",
                     "business_type": btype,
                     "region": None,
@@ -439,13 +557,53 @@ class Command(BaseCommand):
                     "effective_year": TAX_SEED_YEAR,
                     "is_active": True,
                     "created_by": admin_id,
-                    "created_at": _now(),
                     "updated_at": _now(),
                 }
-            schedule_col.insert_one(doc)
+            else:
+                payload = {
+                    "tax_category": "BOP",
+                    "business_type": btype,
+                    "region": None,
+                    "district": None,
+                    "rate_type": "PERCENTAGE_TURNOVER",
+                    "fixed_amount": None,
+                    "percentage_rate": 3.0,
+                    "min_amount": 5_000,    # GHC 50
+                    "max_amount": 200_000,  # GHC 2,000
+                    "period": "ANNUAL",
+                    "effective_year": TAX_SEED_YEAR,
+                    "is_active": True,
+                    "created_by": admin_id,
+                    "updated_at": _now(),
+                }
+
+            if existing:
+                # Keep hawker (and other FIXED) fees aligned with demo constants
+                # so re-seed upgrades older amounts without duplicating rows.
+                needs = (
+                    existing.get("rate_type") != payload["rate_type"]
+                    or existing.get("fixed_amount") != payload.get("fixed_amount")
+                    or existing.get("percentage_rate") != payload.get("percentage_rate")
+                    or existing.get("min_amount") != payload.get("min_amount")
+                    or existing.get("max_amount") != payload.get("max_amount")
+                    or not existing.get("is_active", True)
+                )
+                if needs:
+                    schedule_col.update_one(
+                        {"schedule_id": existing["schedule_id"]},
+                        {"$set": payload},
+                    )
+                    schedules_updated += 1
+                continue
+
+            schedule_col.insert_one({
+                "schedule_id": str(uuid.uuid4()),
+                "created_at": _now(),
+                **payload,
+            })
             schedules_created += 1
 
-        # District override: Accra Metropolitan food_vendor (higher fee) if that district exists
+        # District override: Accra Metropolitan food_vendor (higher fee)
         district_override_created = 0
         if any(t.get("district") == "Accra Metropolitan" for t in get_collection(TRADERS).find({}, {"district": 1})):
             ov = schedule_col.find_one({
@@ -462,7 +620,7 @@ class Command(BaseCommand):
                     "region": "Greater Accra",
                     "district": "Accra Metropolitan",
                     "rate_type": "FIXED",
-                    "fixed_amount": 28000,  # GHS 280 — district > assembly
+                    "fixed_amount": 28_000,  # GHS 280 — district > assembly
                     "percentage_rate": None,
                     "min_amount": None,
                     "max_amount": None,
@@ -476,8 +634,10 @@ class Command(BaseCommand):
                 district_override_created = 1
 
         self.stdout.write(
-            f"  Tax sched: {schedules_created} assembly-wide + {district_override_created} district override "
-            f"(skipped type={MISSING_SCHEDULE_BUSINESS_TYPE!r} for MISSING_SCHEDULE demo)"
+            f"  Tax sched: {schedules_created} created, {schedules_updated} updated, "
+            f"{district_override_created} district override "
+            f"(skipped type={MISSING_SCHEDULE_BUSINESS_TYPE!r} for MISSING_SCHEDULE demo); "
+            f"FIXED={sorted(FIXED_FEES_PESEWAS)}, PCT={sorted(PERCENTAGE_BUSINESS_TYPES)}"
         )
 
         # ── 2. Assessments via real TaxService ─────────────────────────────
@@ -485,32 +645,78 @@ class Command(BaseCommand):
         period = str(TAX_SEED_YEAR)
         created = 0
         skipped = 0
+        regenerated = 0
         needs_turnover_n = 0
         missing_schedule_n = 0
-        # Leave first few percentage businesses without turnover for NEEDS_TURNOVER
-        pct_left_for_exception = 2
 
         businesses = list(business_col.find({}, {"_id": 0}))
+
+        # Force NEEDS_TURNOVER: first two percentage businesses with no bracket
+        # (or any percentage if none lack a bracket)
+        pct_force_needs: set[str] = set()
+        for biz in businesses:
+            if biz.get("business_type") not in PERCENTAGE_BUSINESS_TYPES:
+                continue
+            if biz.get("income_bracket") in INCOME_BRACKET_CODES:
+                continue
+            pct_force_needs.add(biz["business_id"])
+            if len(pct_force_needs) >= 2:
+                break
+        if len(pct_force_needs) < 1:
+            for biz in businesses:
+                if biz.get("business_type") in PERCENTAGE_BUSINESS_TYPES:
+                    pct_force_needs.add(biz["business_id"])
+                    if len(pct_force_needs) >= 2:
+                        break
+
         for business in businesses:
             btype = business.get("business_type")
             bid = business["business_id"]
+            bracket = business.get("income_bracket")
 
-            existing = get_collection(TAX_ASSESSMENTS).find_one({
+            existing = assess_col.find_one({
                 "business_id": bid,
                 "tax_category": "BOP",
                 "period_label": period,
-            })
-            if existing:
-                skipped += 1
-                continue
+            }, {"_id": 0})
 
+            # Resolve intended turnover for percentage types
             turnover = None
-            if btype in PERCENTAGE_BUSINESS_TYPES:
-                if pct_left_for_exception > 0:
-                    pct_left_for_exception -= 1
-                    turnover = None  # force NEEDS_TURNOVER
+            force_needs = bid in pct_force_needs
+            if btype in PERCENTAGE_BUSINESS_TYPES and not force_needs:
+                if bracket in INCOME_BRACKET_CODES:
+                    turnover = get_representative_annual_income_pesewas(bracket)
                 else:
-                    turnover = random.randint(1_500_000, 4_000_000)  # GHS 15k–40k
+                    turnover = random.randint(1_500_000, 4_000_000)
+
+            # If assessment already exists, keep unless we need to re-apply
+            # affordability cap / bracket turnover (stale pre-bracket rows).
+            if existing:
+                should_regen = False
+                if bracket in INCOME_BRACKET_CODES:
+                    cap = affordability_cap_pesewas(bracket)
+                    due = int(existing.get("amount_due") or 0)
+                    # Cap should have applied
+                    if cap is not None and due > cap:
+                        should_regen = True
+                    # Hawker BRACKET_1 must show clamped GHC 750 after FIXED 2000
+                    if btype == "hawker" and bracket == "BRACKET_1" and due != 75_000:
+                        # 75000 only if assembly FIXED is 200000 and no higher district match
+                        should_regen = True
+                if force_needs:
+                    # Prefer OPEN NEEDS_TURNOVER over a prior successful assessment
+                    should_regen = True
+                    assess_col.delete_one({"assessment_id": existing["assessment_id"]})
+                    pay_col.delete_many({"assessment_id": existing["assessment_id"]})
+                    existing = None
+                elif should_regen:
+                    assess_col.delete_one({"assessment_id": existing["assessment_id"]})
+                    pay_col.delete_many({"assessment_id": existing["assessment_id"]})
+                    existing = None
+                    regenerated += 1
+                else:
+                    skipped += 1
+                    continue
 
             try:
                 tax.generate_assessment(
@@ -519,7 +725,7 @@ class Command(BaseCommand):
                     period_label=period,
                     channel_generated="seed_demo",
                     declared_turnover_pesewas=turnover,
-                    audit_log=False,
+                    audit_log=True,
                     actor_id=admin_id,
                 )
                 created += 1
@@ -532,42 +738,56 @@ class Command(BaseCommand):
             except Exception as exc:
                 logger.warning("Seed assessment failed for %s: %s", bid, exc)
 
+        capped_audit_n = audit_col.count_documents({"action": "ASSESSMENT_CAPPED_AFFORDABILITY"})
+        open_needs = exc_col.count_documents({"status": "OPEN", "exception_type": "NEEDS_TURNOVER"})
+        open_missing = exc_col.count_documents({"status": "OPEN", "exception_type": "MISSING_SCHEDULE"})
+
         self.stdout.write(
-            f"  Tax assess: {created} generated via TaxService, {skipped} already existed, "
-            f"NEEDS_TURNOVER={needs_turnover_n}, MISSING_SCHEDULE={missing_schedule_n}"
+            f"  Tax assess: {created} generated via TaxService, {skipped} already ok, "
+            f"stale_regenerated≈{regenerated}, "
+            f"NEEDS_TURNOVER_this_run={needs_turnover_n}, MISSING_SCHEDULE_this_run={missing_schedule_n}"
+        )
+        self.stdout.write(
+            f"  Cap audit : ASSESSMENT_CAPPED_AFFORDABILITY total={capped_audit_n} "
+            f"(need ≥1 for demo)"
+        )
+        self.stdout.write(
+            f"  Exceptions: OPEN NEEDS_TURNOVER={open_needs}, OPEN MISSING_SCHEDULE={open_missing}"
         )
 
         # ── 3. Sample SUCCESS payments for KPI demo ────────────────────────
-        pay_col = get_collection(TAX_PAYMENTS)
-        assess_col = get_collection(TAX_ASSESSMENTS)
+        # Prefer PENDING assessments that are not the cap demo (any is fine)
         pending = list(
             assess_col.find({"status": "PENDING", "period_label": period}, {"_id": 0})
-            .limit(5)
+            .limit(10)
         )
         payments_created = 0
         channels = ["web", "ussd"]
-        for i, assessment in enumerate(pending[:3]):
-            # Avoid re-seeding if this assessment already has a SUCCESS payment
+        target_payments = 2  # 1 PAID + 1 PARTIAL minimum for reports
+        for i, assessment in enumerate(pending):
+            if payments_created >= target_payments and payments_created >= 2:
+                break
             if pay_col.find_one({"assessment_id": assessment["assessment_id"], "status": "SUCCESS"}):
                 continue
             due = int(assessment.get("amount_due") or 0)
             if due <= 0:
                 continue
-            # First: full PAID; second: PARTIAL (~50%); third: full PAID
-            if i == 1:
+            # Alternate: full PAID then PARTIAL
+            if payments_created % 2 == 1:
                 amount = max(1, due // 2)
                 new_status = "PARTIAL"
             else:
                 amount = due
                 new_status = "PAID"
             payment_id = str(uuid.uuid4())
+            channel = channels[payments_created % 2]
             pay_col.insert_one({
                 "payment_id": payment_id,
                 "assessment_id": assessment["assessment_id"],
                 "trader_id": assessment.get("trader_id"),
                 "amount_pesewas": amount,
                 "status": "SUCCESS",
-                "channel": channels[i % 2],
+                "channel": channel,
                 "momo_network": "mtn",
                 "provider": "paystack_seed",
                 "provider_reference": f"seed-{payment_id[:8]}",
@@ -581,12 +801,45 @@ class Command(BaseCommand):
             )
             payments_created += 1
 
-        self.stdout.write(f"  Tax pays : {payments_created} SUCCESS seed payment(s) applied")
+        # If DB already had payments, still report current KPI-ish totals
+        paid_n = assess_col.count_documents({"status": "PAID", "period_label": period})
+        partial_n = assess_col.count_documents({"status": "PARTIAL", "period_label": period})
+        pending_n = assess_col.count_documents({"status": "PENDING", "period_label": period})
+
+        self.stdout.write(
+            f"  Tax pays : {payments_created} SUCCESS seed payment(s) applied this run; "
+            f"status mix period={period}: PAID={paid_n}, PARTIAL={partial_n}, PENDING={pending_n}"
+        )
+
+        # KPI snapshot via real aggregator
+        try:
+            from apps.reports.tax_kpis import aggregate_tax_kpis
+            kpis = aggregate_tax_kpis(period_label=period)
+            self.stdout.write(
+                f"  Tax KPIs : assessed_ghs={kpis.get('total_assessed_ghs')}, "
+                f"collected_ghs={kpis.get('total_collected_ghs')}, "
+                f"rate_pct={kpis.get('collection_rate_pct')}"
+            )
+        except Exception as exc:
+            logger.warning("KPI snapshot skipped: %s", exc)
+            kpis = {}
+
+        # Capped amount sample for log
+        capped_sample = assess_col.find_one(
+            {"amount_due": 75_000, "period_label": period},
+            {"_id": 0, "assessment_id": 1, "business_id": 1, "amount_due": 1},
+        )
+        self.stdout.write(
+            f"  Cap sample assessment: {capped_sample or 'NONE — check hawker BRACKET_1 schedule'}"
+        )
 
         # Summary counts for log
+        sched_types = sorted(schedule_col.distinct("business_type") or [])
         self.stdout.write(
             f"  Tax totals now: schedules={schedule_col.count_documents({})}, "
+            f"schedule_types={sched_types}, "
             f"assessments={assess_col.count_documents({})}, "
             f"payments={pay_col.count_documents({})}, "
-            f"exceptions_open={get_collection(TAX_ASSESSMENT_EXCEPTIONS).count_documents({'status': 'OPEN'})}"
+            f"exceptions_open={exc_col.count_documents({'status': 'OPEN'})}, "
+            f"capped_audits={capped_audit_n}"
         )
