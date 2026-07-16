@@ -1,11 +1,13 @@
 """
 NotificationService — SMS abstraction layer.
 
-Provider priority:
-  1. Brevo (BREVO_API_KEY or BREVO_SMS_API_KEY)  ← preferred
-  2. Arkesel (ARKESEL_SMS_API_KEY)               ← legacy
-  3. Africa's Talking (AT_API_KEY + AT_USERNAME) ← legacy
-  4. StubSMSProvider                             ← local / no credentials
+Provider priority (active):
+  1. Arkesel (ARKESEL_SMS_API_KEY)  ← primary (USSD + SMS same vendor)
+  2. StubSMSProvider                ← local / no credentials
+
+BrevoSMSProvider remains in the codebase (providers/brevo.py) but is NOT
+selected here — Ghana sender-ID registration blocked production use.
+Africa's Talking is also unused on the active chain.
 
 All callers go through this service; they never touch providers directly.
 """
@@ -19,30 +21,15 @@ logger = logging.getLogger(__name__)
 
 def _build_provider():
     """Return the appropriate SMS provider based on environment config."""
-    brevo_key = getattr(settings, "BREVO_API_KEY", "") or getattr(
-        settings, "BREVO_SMS_API_KEY", ""
-    )
-    if brevo_key:
-        from apps.notifications.providers.brevo import BrevoSMSProvider
-
-        logger.info("NotificationService: using BrevoSMSProvider")
-        return BrevoSMSProvider()
-
     if getattr(settings, "ARKESEL_SMS_API_KEY", ""):
         from apps.notifications.providers.arkesel import ArkeselSMSProvider
 
-        logger.info("NotificationService: using ArkeselSMSProvider (legacy)")
+        logger.info("NotificationService: using ArkeselSMSProvider")
         return ArkeselSMSProvider()
-
-    if getattr(settings, "AT_API_KEY", "") and getattr(settings, "AT_USERNAME", ""):
-        from apps.notifications.providers.africas_talking import AfricasTalkingProvider
-
-        logger.info("NotificationService: using AfricasTalkingProvider (legacy)")
-        return AfricasTalkingProvider()
 
     from apps.notifications.providers.stub import StubSMSProvider
 
-    logger.info("NotificationService: using StubSMSProvider (no credentials)")
+    logger.info("NotificationService: using StubSMSProvider (no ARKESEL_SMS_API_KEY)")
     return StubSMSProvider()
 
 

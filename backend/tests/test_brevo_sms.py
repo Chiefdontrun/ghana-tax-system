@@ -5,34 +5,26 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 
-def test_build_provider_prefers_brevo(settings):
+def test_build_provider_does_not_select_brevo(settings):
+    """Brevo class remains importable but is not on the active selection path."""
     settings.BREVO_API_KEY = "xkeysib-test"
-    settings.BREVO_SMS_API_KEY = ""
-    settings.ARKESEL_SMS_API_KEY = "arkesel-should-not-win"
-    settings.AT_API_KEY = ""
-    settings.AT_USERNAME = ""
-
-    from apps.notifications.services import _build_provider
-    from apps.notifications.providers.brevo import BrevoSMSProvider
-
-    provider = _build_provider()
-    assert isinstance(provider, BrevoSMSProvider)
-
-
-def test_build_provider_brevo_sms_alias(settings):
-    settings.BREVO_API_KEY = ""
-    settings.BREVO_SMS_API_KEY = "xkeysib-alias"
+    settings.BREVO_SMS_API_KEY = "xkeysib-test"
     settings.ARKESEL_SMS_API_KEY = ""
     settings.AT_API_KEY = ""
     settings.AT_USERNAME = ""
 
     from apps.notifications.services import _build_provider
+    from apps.notifications.providers.stub import StubSMSProvider
     from apps.notifications.providers.brevo import BrevoSMSProvider
 
-    assert isinstance(_build_provider(), BrevoSMSProvider)
+    provider = _build_provider()
+    assert isinstance(provider, StubSMSProvider)
+    assert not isinstance(provider, BrevoSMSProvider)
+    # Class still exists for optional future use
+    assert BrevoSMSProvider is not None
 
 
-def test_build_provider_stub_when_no_keys(settings):
+def test_build_provider_stub_when_no_arkesel_key(settings):
     settings.BREVO_API_KEY = ""
     settings.BREVO_SMS_API_KEY = ""
     settings.ARKESEL_SMS_API_KEY = ""

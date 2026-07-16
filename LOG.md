@@ -31,6 +31,97 @@
 
 ---
 
+## [Continuation] Arkesel SMS live key verification — 2026-07-16
+
+**Status:** Complete (API path green). Physical handset delivery requires operator confirmation (this agent cannot see the phone).
+
+**What was verified:**
+- Operator set `ARKESEL_SMS_API_KEY` in local `.env` and Vercel.
+- Local runtime selects **`ArkeselSMSProvider`** (not Stub, not Brevo).
+- `ARKESEL_SENDER_ID` currently **`GHREVENUE`** (no hyphen).
+- Live sends via `NotificationService.send_otp_sms` / `send_sms` to **`+233231804643`**:
+
+| Call | success | message_id |
+|------|---------|------------|
+| `send_otp_sms` (code 482917) | **True** | `b8921beb-b592-4282-abc4-057427834e97` |
+| `send_sms` (delivery check text) | **True** | `115576dc-d338-402a-8ca3-1dea18087060` |
+
+- Production: `POST https://ghana-tax-system-hh6f.vercel.app/api/trader-auth/request-otp/` with `phone_number=+233231804643` returned `{success:true, message:"If this number is registered, a verification code has been sent."}` (enumeration-safe; SMS only if that number is a registered trader in prod DB).
+
+**Physical phone:** Not observed by this agent. Operator should confirm receipt of:
+1. OTP-style message ending with code **482917** (or similar from trader OTP if registered)
+2. Text: `DA Revenue: Arkesel SMS check OK...`
+
+**Files modified:**
+- `LOG.md` — this entry only (no code change; env already updated by operator)
+
+**Tests (re-run after key present):**
+```
+pytest tests/test_arkesel_sms.py tests/test_brevo_sms.py -q
+→ 11 passed in 1.66s
+```
+
+**Open:**
+- Confirm SMS on handset `+233231804643`.
+- If no SMS: check Arkesel dashboard delivery status for the message IDs above, credits, and sender-ID approval for `GHREVENUE`.
+
+---
+
+## [Continuation] SMS provider revert: Arkesel primary (Brevo deselected) — 2026-07-16
+
+**Status:** Complete (code + tests). **Real physical SMS delivery NOT confirmed** — blocked by missing credentials.
+
+**What was reverted/built:**
+- `NotificationService` provider chain changed from Brevo → Arkesel → AT → Stub to **Arkesel → Stub only**.
+- `BrevoSMSProvider` class **kept** at `backend/apps/notifications/providers/brevo.py` but **no longer selected**.
+- Africa's Talking removed from active selection (already unused).
+- `ArkeselSMSProvider` still at `backend/apps/notifications/providers/arkesel.py`, uses:
+  - `ARKESEL_SMS_API_KEY`
+  - `ARKESEL_SENDER_ID` (default `GH-REVENUE`)
+  - endpoint `https://sms.arkesel.com/api/v2/sms/send`
+- Added `backend/tests/test_arkesel_sms.py` (selection + mocked payload).
+- Updated `test_brevo_sms.py` so provider-selection tests assert Brevo is **not** chosen.
+- `.env.example` documents Arkesel as ACTIVE and Brevo as INACTIVE/optional.
+
+**Files created/modified:**
+- `backend/apps/notifications/services.py`
+- `backend/apps/notifications/providers/arkesel.py` — unchanged (already functional)
+- `backend/apps/notifications/providers/brevo.py` — kept, not deleted
+- `backend/.env.example`
+- `backend/.env` — added empty `ARKESEL_SMS_API_KEY` / `ARKESEL_SENDER_ID` placeholders (key was missing)
+- `backend/tests/test_arkesel_sms.py` — new
+- `backend/tests/test_brevo_sms.py` — selection expectations updated
+- `LOG.md` — this entry
+
+**Env var audit (critical):**
+| Variable | Local `.env` | Notes |
+|----------|--------------|--------|
+| `ARKESEL_SMS_API_KEY` | **EMPTY** | Must be set for any real SMS |
+| `ARKESEL_SENDER_ID` | `GH-REVENUE` | Present after placeholder add |
+| `BREVO_SMS_API_KEY` | set (len 89) | **Ignored** by selection path |
+| Vercel | **Not verified in this pass** | If empty there, production OTP/TIN SMS also stub |
+
+**Real SMS attempt:**
+- Path: `NotificationService.send_otp_sms('+233231804643', …)` → Arkesel selection.
+- Because `ARKESEL_SMS_API_KEY` is empty, runtime selects **StubSMSProvider** — no Arkesel network call, **no handset delivery possible**.
+- **Physical phone delivery: NOT confirmed (impossible without API key).** Do not treat this as a green SMS gate.
+
+**Tests:**
+```
+pytest tests/test_arkesel_sms.py tests/test_brevo_sms.py -q
+→ 11 passed in 6.40s  (6 arkesel + 5 brevo-updated)
+```
+OTP live attempt result: `ACTIVE_PROVIDER=StubSMSProvider`, `message_id=stub-41557ac3` (not Arkesel).
+
+**Open issues:**
+1. **Set `ARKESEL_SMS_API_KEY` in local `.env` and Vercel**, then re-send OTP to `+233231804643` and confirm handset.
+2. Confirm Arkesel SMS **sender ID** `GH-REVENUE` (or chosen ID) is approved on the Arkesel dashboard for Ghana — Phase E enabled Arkesel SMS code path but this session found **no local API key**, so sender approval was never re-verified here.
+3. Brevo remains code-only; do not set Brevo env expecting it to send until selection is re-enabled.
+
+**Deviations:** None from the revert request except inability to complete physical delivery without credentials.
+
+---
+
 ## [Continuation] Four-gate re-confirmation (local Mongo) — 2026-07-16
 
 **Status:** Suites + OTP path + Brevo API + prod USSD HTTP confirmed. Handset SMS + phone-screen dial still operator-owned.
