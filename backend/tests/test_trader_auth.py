@@ -28,6 +28,39 @@ def test_request_otp_non_enumeration(client, sample_trader, test_db):
     assert res.json()["message"] == "If this number is registered, a verification code has been sent."
     assert get_collection(TRADER_OTP_VERIFICATIONS).count_documents({"phone_number": sample_trader["phone_number"]}) == 1
 
+def test_verify_otp_missing_code_returns_400_not_500(client, sample_trader, test_db):
+    """Malformed body must never 500 (regression: details= kwarg TypeError)."""
+    res = client.post(
+        "/api/trader-auth/verify-otp/",
+        {"phone_number": sample_trader["phone_number"]},
+        content_type="application/json",
+    )
+    assert res.status_code == 400
+    body = res.json()
+    assert body["success"] is False
+    assert "errors" in body
+
+
+def test_verify_otp_wrong_field_name_returns_400_or_accepts_alias(client, sample_trader, test_db):
+    """otp_code alone is accepted as alias; empty body still 400."""
+    client.post("/api/trader-auth/request-otp/", {"phone_number": sample_trader["phone_number"]})
+    otp_doc = get_collection(TRADER_OTP_VERIFICATIONS).find_one(
+        {"phone_number": sample_trader["phone_number"]}
+    )
+    hashed_code = bcrypt.hashpw(b"654321", bcrypt.gensalt()).decode("utf-8")
+    get_collection(TRADER_OTP_VERIFICATIONS).update_one(
+        {"_id": otp_doc["_id"]}, {"$set": {"otp_hash": hashed_code}}
+    )
+    # Alias otp_code (no `code`) must validate and succeed
+    res = client.post(
+        "/api/trader-auth/verify-otp/",
+        {"phone_number": sample_trader["phone_number"], "otp_code": "654321"},
+        content_type="application/json",
+    )
+    assert res.status_code == 200
+    assert "access" in res.json()["data"]
+
+
 def test_verify_otp_success_and_last_login(client, sample_trader, test_db):
     # Request OTP
     client.post("/api/trader-auth/request-otp/", {"phone_number": sample_trader["phone_number"]})

@@ -26,7 +26,11 @@ class TraderOtpRequestView(APIView):
     def post(self, request):
         serializer = TraderOtpRequestSerializer(data=request.data)
         if not serializer.is_valid():
-            return error_response("Invalid input", http_status=400, details=serializer.errors)
+            return error_response(
+                "Validation failed. Please check your input.",
+                errors=serializer.errors,
+                http_status=400,
+            )
 
         phone_number = normalise_phone(serializer.validated_data["phone_number"])
         request_info = {
@@ -51,9 +55,15 @@ class TraderOtpVerifyView(APIView):
     def post(self, request):
         serializer = TraderOtpVerifySerializer(data=request.data)
         if not serializer.is_valid():
-            return error_response("Invalid input", http_status=400, details=serializer.errors)
+            # Must use errors= (not details=) — wrong kwarg caused TypeError → 500
+            return error_response(
+                "Validation failed. Please check your input.",
+                errors=serializer.errors,
+                http_status=400,
+            )
 
         phone_number = normalise_phone(serializer.validated_data["phone_number"])
+        # Canonical field is "code" (same as admin OTP verify); otp_code accepted as alias
         code = serializer.validated_data["code"]
         request_info = {
             "ip_address": getattr(request, "client_ip", ""),
