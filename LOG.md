@@ -31,6 +31,50 @@
 
 ---
 
+## [Diagnose/Fix] USSD income-bracket step missing on live shortcode — 2026-07-17
+
+**Status:** ✅ Fixed — root cause identified and production verified
+
+### Root cause (exactly one)
+**STALE DEPLOYMENT** — Production Vercel (`ghana-tax-system-hh6f.vercel.app`) was still serving pre–income-bracket USSD code while GitHub `main` already had the feature.
+
+| Check | Result |
+|-------|--------|
+| Local / `origin/main` commit with `STATE_REG_INCOME_BRACKET` | `ae3c955` (2026-07-16 23:21:32 UTC) “Add income bracket selection…” |
+| Repo HEAD at diagnosis | `d14c41c` then force-deploy `2102585` |
+| Production **before** redeploy | `"Step 2 of 5 - Business Type"` / Food Vendor first / **no Hawker** / after type → **Region** |
+| Production **after** redeploy | `"Step 2/6 Business Type"` / **1. Hawker** / after type → **`Monthly income:`** brackets |
+
+### Ruled out
+1. **Transition-graph gap** — Not the bug. In `apps/ussd/state_machine.py`, `_handle_reg_business_type` sets `session["step"] = STATE_REG_INCOME_BRACKET` and returns `_income_bracket_menu_text()`; `_route` dispatches `STATE_REG_INCOME_BRACKET` → `_handle_reg_income_bracket` → `STATE_REG_REGION`. Local tests passing matched this correct wiring.
+2. **Wrong Arkesel callback URL** — Not the bug. `POST /ussd/callback/` on production accepted Arkesel JSON and advanced sessions both before and after. The endpoint was correct; it was simply running **old** code. Capture URL `/ussd/arkesel-capture/` is the same Vercel app (also updated by the redeploy). Operator should still keep Arkesel dashboard pointed at:
+   `https://ghana-tax-system-hh6f.vercel.app/ussd/callback/`  
+   (not a tunnel / not capture-only for long-term production).
+
+### Fix applied
+- Empty commit + push to `main`: `2102585 chore(deploy): force production redeploy for USSD income-bracket step`
+- Vercel picked up Production within ~3–4 minutes (poll attempt 7 showed new menus).
+
+### Live verification (production, Arkesel-shaped payloads — same contract as *928*309#)
+Full registration completed on production:
+- Session `livefix-c9a2b8f46b`, MSISDN `233231812521`
+- Flow: menu → Register → name → **Hawker menu** → **Monthly income** → region → market → confirm → **`GH-TIN-D7FD37`**
+- Income bracket menu text: `Monthly income: / 1. GHC 100-400 / 2. GHC 401-1000 / 3. GHC 1001-3000 / 4. GHC 3001+`
+
+Physical handset dial of `*928*309#` was not observed by this agent (no phone access); HTTP path is the production callback Arkesel uses.
+
+### Process fix (so this does not recur)
+After **any** USSD change: do not assume Git push = live shortcode. Probe Production:
+```
+POST .../ussd/callback/  (Arkesel JSON: newSession → 1 → name → 1)
+```
+Expect **Hawker** + next screen **Monthly income**. If still “of 5” / Food Vendor first, Production alias is stale — redeploy/promote before handset testing.
+
+### Log file
+- `USSD_INCOME_BRACKET_DIAGNOSIS.md` (repo root) — full diagnosis transcript
+
+---
+
 ## [Seed] Rate schedules + assessments with income brackets + affordability cap demo — 2026-07-16
 
 **Status:** ✅ Complete
