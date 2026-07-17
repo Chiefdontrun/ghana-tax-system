@@ -31,6 +31,74 @@
 
 ---
 
+## [Docs] README + HANDOFF accuracy audit (final-year submission) — 2026-07-17
+
+**Status:** ✅ Complete (documentation only — no application code changes)
+
+**Scope:** Full system screening against live code + `LOG.md`, then rewrite **`README.md`** for submission; targeted accuracy fixes on **`HANDOFF.md`** (handoff/session context, not a second user README). Separate from Phase G verification log entry.
+
+### Doc roles (clarified)
+
+| File | Role |
+|------|------|
+| `README.md` | Project overview, setup, features, limitations (this rewrite) |
+| `HANDOFF.md` | Dense multi-session / AI continuation context — still useful, not the public README |
+| `LOG.md` | Chronological build history |
+
+### What was stale / incorrect in prior README
+
+| Issue | Correction |
+|-------|------------|
+| Architecture diagram: USSD/SMS as **Africa's Talking** | Live USSD = **Arkesel** `*928*309#`; SMS = Arkesel when key set |
+| Env table listed `AT_API_KEY` as USSD/SMS active | Marked AT/Brevo **legacy/unused**; documented Arkesel, Paystack, `CRON_SECRET` |
+| USSD curl sample: shortcode `*714#`, Food Vendor first, **no income bracket**, old step count | Documented Arkesel JSON probe + Hawker-first + bracket step; AT form only for tests |
+| API table incomplete | Added tax, payments, trader-auth, cron, trailing-slash note |
+| Phase Progress table only 1–12 | Replaced with **as-shipped features** (tax, brackets, cap, Paystack, cron) |
+| Seed description incomplete | Seed includes tax schedules/assessments/exceptions/payments |
+| No limitations section | Added known limitations (sender ID, MTN, sandbox Paystack, AirtelTigo, refunds, deploy lag) |
+| No business types / brackets | Pulled from `validators.py` + `tax/constants.py` (25% cap, ranges) |
+| Python pin understated | Explicit **3.12** + why not 3.14 |
+
+### HANDOFF.md (partial, not full rewrite)
+
+- Header: last accuracy pass 2026-07-17; points readers to README for user docs
+- Project stage: no longer claims “Atlas permanently broken”; notes Production probe discipline
+- USSD gateway / tree / open issues SMS lines: Arkesel-active, AT not required
+- Vercel env snippet: Arkesel + Paystack + CRON; AT optional legacy
+- Older embedded phase notes may still mention historical AT/Brevo experiments—**README is authoritative** for current truth
+
+### Final README section list
+
+1. Title / one-paragraph product description + doc roles  
+2. Core features (as shipped)  
+3. Tech stack (incl. Python 3.12 pin)  
+4. Architecture overview (apps + Mongo collections + business types + brackets)  
+5. Production URLs  
+6. Setup (backend / frontend / Docker / seed accounts)  
+7. Environment variables (active / legacy / pending approval)  
+8. Main API surface + USSD probe  
+9. Testing  
+10. Known limitations & external dependencies  
+11. Project layout  
+12. Academic / secrets note  
+
+### `.env.example`
+
+- Already accurate from prior work; no structural rewrite required this pass (README now cross-references it as source of truth). Optional `CORS_ALLOWED_ORIGIN_REGEXES` already present.
+
+### Gaps found during screening (not fixed here — code/process, not docs)
+
+| Finding | Notes |
+|---------|--------|
+| `HANDOFF.md` still contains long historical “as of 2026-07-15” sections | Intentional partial update; do not treat mid-file history as current inventory |
+| Phase G full pytest pass count | Not closed in this task; README says ~170+ collected and defers final number to G’s LOG entry |
+| Vercel env parity | Cannot list live Vercel dashboard keys from docs-only task; README stresses parity with `.env.example` |
+| KPI breakdowns empty `business_type` in aggregate | Observed in prior seed verification data — possible denormalization gap for reports by-type charts; flag for separate investigation |
+
+**Files modified:** `README.md` (full rewrite), `HANDOFF.md` (accuracy pass), `LOG.md` (this entry).
+
+---
+
 ## [Diagnose/Fix] USSD income-bracket step missing on live shortcode — 2026-07-17
 
 **Status:** ✅ Fixed — root cause identified and production verified

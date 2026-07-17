@@ -25,7 +25,8 @@ class Command(BaseCommand):
         )
 
     def handle(self, *args, **options):
-        minutes = options["minutes"]
+        # Default when invoked as Command().handle() in tests without argparse
+        minutes = options.get("minutes", 5)
         summary = PaymentService().run_pending_payment_check(older_than_minutes=minutes)
 
         self.stdout.write(

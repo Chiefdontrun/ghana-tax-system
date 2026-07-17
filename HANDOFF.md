@@ -1,8 +1,9 @@
 # Ghana Tax System — Development Handoff & Context Document
 
-> **Generated:** 2026-07-15  
-> **Purpose:** Full project context for a new AI-assisted development session.  
-> **Paste this entire file as the foundation for a continuation prompt.**
+> **Last accuracy pass:** 2026-07-17 (docs audit)  
+> **Purpose:** Dense context for AI-assisted / multi-session development.  
+> **Not** the user-facing project README — that is **`README.md`** (setup, features, limitations for submission).  
+> **`LOG.md`** remains the chronological build history. Prefer README + LOG over older sections of this file if they conflict.
 
 ---
 
@@ -13,10 +14,10 @@
 | **Name** | Digital Taxation & Revenue Tracking System |
 | **Short name** | Ghana Tax System |
 | **Organisation** | Ghana District Assembly — Revenue Unit |
-| **Purpose** | Multi-channel (web + USSD) platform for registering informal market traders, generating Tax Identification Numbers (TINs), and giving revenue officers a dashboard with KPI reporting, CSV export, and an immutable audit trail |
-| **Intended users** | Two user groups: (1) Traders — register via web form or USSD; (2) Revenue officers — manage registrations via a secure admin portal |
-| **Current stage** | **All 12 planned phases are complete.** The system is deployed and running in production on Vercel (frontend + backend serverless). The MongoDB Atlas connection credentials on the live deployment are currently broken (auth failure). Local development is fully functional. |
-| **Design language** | Professional/government — Central University red/white portal style (`--cu-red: #8A1020`). TailwindCSS used throughout the frontend. |
+| **Purpose** | Multi-channel (web + USSD) platform for registering informal market traders, generating TINs, BOP tax assessment/payment (Paystack sandbox), and admin KPIs / CSV / audit |
+| **Intended users** | (1) Traders — web form or USSD; (2) Revenue officers — admin portal |
+| **Current stage** | Core product + tax/payments/USSD income-bracket phases shipped and on Vercel. Production API host: `ghana-tax-system-hh6f.vercel.app`. MongoDB Atlas used successfully for seed/E2E (re-check credentials if deploy fails). After USSD changes, **always re-probe Production** — stale deploys have skipped new screens. |
+| **Design language** | Professional/government — Central University red/white portal style (`--cu-red: #8A1020`). TailwindCSS throughout. |
 
 ---
 
@@ -59,7 +60,7 @@
 |---|---|
 | Containerisation | Docker + Docker Compose (`infra/` directory) |
 | MongoDB indexes | `infra/mongo-init/init.js` — creates all production indexes |
-| USSD gateway | Africa's Talking USSD webhook |
+| USSD gateway | **Arkesel** shortcode `*928*309#` → `POST /ussd/callback/` (JSON). Legacy AT form-encoded still accepted for unit tests only. |
 
 ---
 
@@ -94,12 +95,13 @@ ghana-tax-system-1/
 │   │   ├── tin/                ← TIN generation + public lookup
 │   │   ├── reports/            ← Aggregation reports, CSV export, trader list
 │   │   ├── audit/              ← Immutable audit log
-│   │   ├── ussd/               ← USSD webhook + 5-step state machine
-│   │   └── notifications/      ← SMS abstraction (AT + stub providers)
+│   │   ├── ussd/               ← Arkesel USSD + multi-step state machine (incl. income bracket)
+│   │   ├── tax/ · payments/ · trader_auth/  ← BOP tax, Paystack MoMo, trader OTP
+│   │   └── notifications/      ← SMS: Arkesel → Stub (Brevo/AT classes not selected)
 │   ├── management/
 │   │   └── commands/
 │   │       └── seed_demo_data.py  ← `python manage.py seed_demo_data`
-│   └── tests/                 ← pytest test suite (73 passing tests)
+│   └── tests/                 ← pytest suite (~170+ tests as of 2026-07-17)
 └── frontend/
     ├── index.html
     ├── vite.config.ts
@@ -208,7 +210,7 @@ All collections live in MongoDB. There is no Django ORM model — data shapes ar
 **Known audit actions:** `LOGIN_SUCCESS`, `LOGIN_FAIL`, `OTP_GENERATED`, `OTP_VERIFIED`, `OTP_FAILED`, `OTP_EXPIRED`, `OTP_RESENT`, `OTP_EMAIL_FAILED`, `CREATE_TRADER`, `DUPLICATE_REGISTRATION_ATTEMPT`, `CREATE_ADMIN`, `ROLE_CHANGE`, `STATUS_CHANGE`, `EXPORT_CSV`
 
 ### `ussd_sessions` collection
-Managed by `USSDSessionStore`. Holds the multi-step USSD flow state (current state name + collected field values) keyed by Africa's Talking `sessionId`. Has a MongoDB TTL index for automatic expiry.
+Managed by `USSDSessionStore`. Holds multi-step USSD flow state (step + `collected`) keyed by Arkesel `sessionID` (or AT-style `sessionId` in tests). MongoDB TTL for expiry.
 
 ---
 
@@ -262,7 +264,7 @@ All endpoints are prefixed relative to the Django server root (`http://localhost
 ### USSD — `/ussd/`
 | Method | Path | Auth | Description |
 |---|---|---|---|
-| POST | `/ussd/callback/` | Public (webhook) | Africa's Talking USSD webhook. Returns `CON` or `END` plain text. |
+| POST | `/ussd/callback/` | Public (webhook) | Arkesel USSD webhook (JSON → Arkesel `continueSession` response). Legacy AT form-encoded still supported for tests. |
 
 ### Standard API Response Shape
 ```json
@@ -300,19 +302,20 @@ Permission is enforced at two layers:
 - Public TIN lookup by phone number
 - Full admin portal: Dashboard KPIs, trader list with filters, trader detail, CSV export
 - Audit log page (SYS_ADMIN only)
-- USSD flow: 5-step registration + TIN lookup (via Africa's Talking webhook)
+- USSD flow: registration (name → business type / Hawker first → **income bracket** → region → market → confirm) + TIN lookup + pay assessment (Arkesel `*928*309#`)
 - Redis caching for reports summary (45s TTL, auto-invalidated on new registrations)
 - JWT access token silent refresh (Axios interceptor)
 - Rate limiting on all endpoints
 - Seed data command: `python manage.py seed_demo_data`
 
 ### Partially Working / Caveats
-- **Resend OTP email in production:** Requires a verified sender domain in Resend. Currently using `onboarding@resend.dev` (Resend's test address), which only delivers to the email address registered with the Resend account. OTP emails sent to `taxadmin1@demo.gov.gh` / `taxadmin2@demo.gov.gh` are silently redirected to `SEED_ADMIN_EMAIL` when `DJANGO_DEBUG=True`.
-- **SMS notifications:** Falls back to `StubSMSProvider` (logs only) unless `AT_API_KEY` and `AT_USERNAME` are set. No real SMS is sent in default setup.
-- **Rate limiting warning:** `django_ratelimit.W001` — the Redis-backed cache is not officially supported by `django-ratelimit`. Functionally works but shows a system check warning.
+- **Resend OTP email in production:** Prefer a verified sender domain. Free test sender often only delivers to the Resend account owner.
+- **SMS:** Active chain is **Arkesel → Stub** (`ARKESEL_SMS_API_KEY`). Sender ID approval may block handset delivery even when API returns success. Brevo/AT env vars are **not** used by selection.
+- **Paystack:** Sandbox/test keys only. AirtelTigo never live-verified.
+- **USSD Production:** After deploys, probe `POST /ussd/callback/` for Hawker + Monthly income menus (stale Production has been observed).
 
-### Known Broken (production)
-- **MongoDB Atlas auth failure on live Vercel deployment.** The `MONGODB_URI` environment variable on Vercel has incorrect credentials (wrong username/password for the Atlas database user). Fix: update the `MONGODB_URI` env var in Vercel project settings with the correct Atlas credentials and redeploy.
+### Production note (historical)
+- Older handoff text claimed Atlas auth was broken on Vercel; later seed/E2E work used Atlas successfully. If deploy fails again, re-check `MONGODB_URI` / `MONGO_URI` in Vercel — not necessarily a code bug.
 
 ---
 
@@ -336,10 +339,10 @@ The last debugging session focused on the Resend OTP email delivery:
 
 | # | Severity | Area | Description |
 |---|---|---|---|
-| 1 | CRITICAL | Production | MongoDB Atlas authentication fails on Vercel. Fix: update `MONGODB_URI` in Vercel environment variables with correct Atlas DB user credentials. |
-| 2 | Medium | Email | Resend sender domain not configured. Currently using `onboarding@resend.dev` which only delivers to the Resend account owner. Production deployment needs a verified custom domain in Resend and the `DEFAULT_FROM_EMAIL` env var updated. |
-| 3 | Medium | Email | The `DEBUG`-mode email redirect (`SEED_ADMIN_EMAIL`) is a development workaround, not a production pattern. Should be removed or guarded strictly before going live. |
-| 4 | Medium | SMS | `AT_API_KEY` and `AT_USERNAME` are not set. All SMS falls back to `StubSMSProvider` — no actual SMS is sent after trader registration. |
+| 1 | Ops | Production | Keep `MONGO_URI`/`MONGODB_URI` + secrets in Vercel in parity with `.env.example`; re-verify after credential rotations. |
+| 2 | Medium | Email | Resend sender domain / `DEFAULT_FROM_EMAIL` for reliable admin OTP to non-owner addresses. |
+| 3 | Medium | Email | DEBUG-mode email redirect to `SEED_ADMIN_EMAIL` is a dev workaround — guard before true production. |
+| 4 | Medium | SMS | Set `ARKESEL_SMS_API_KEY` + approved `ARKESEL_SENDER_ID` for handset delivery; empty key → Stub. AT/Brevo keys are unused. |
 | 5 | Low | Rate limiting | `django_ratelimit.W001` warning about Redis cache not being officially supported. Low impact — functionally works. |
 | 6 | Low | Settings | When Redis is unreachable, the fallback `CACHES` config still tries to use `RedisCache` (not `LocMemCache`). This is a copy-paste bug in the fallback branch of `settings.py` (lines 110-117). The `RATELIMIT_ENABLE = False` guard prevents crashes but cache won't actually work. |
 | 7 | Low | Frontend | No logout button / session expiry UI feedback beyond redirect to `/admin/login`. |
@@ -487,8 +490,11 @@ DEFAULT_FROM_EMAIL=Ghana Tax System <no-reply@yourdomain.com>
 RESEND_API_KEY       <- From resend.com dashboard
 SEED_ADMIN_EMAIL     <- Developer's real email (owner of Resend account)
 SEED_ADMIN_PASSWORD
-AT_API_KEY           <- Africa's Talking (optional)
-AT_USERNAME          <- Africa's Talking (optional)
+ARKESEL_SMS_API_KEY  <- Arkesel SMS (active when set)
+ARKESEL_SENDER_ID    <- e.g. GHREVENUE (approval may be pending)
+PAYSTACK_SECRET_KEY  <- sk_test_ only for this project
+CRON_SECRET          <- pending-payment poller
+# AT_* / BREVO_* — legacy/unused by NotificationService selection
 ```
 
 ---

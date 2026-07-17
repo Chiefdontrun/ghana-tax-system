@@ -1,0 +1,78 @@
+{
+  "web_register": {
+    "status": 201,
+    "data": {
+      "success": true,
+      "message": "Registration successful.",
+      "data": {
+        "tin_number": "GH-TIN-5E62AD",
+        "trader_id": "47510678-3d1d-4b94-87e4-2d3eae605725",
+        "name": "G4 E2E Web Trader",
+        "sms_status": "sent"
+      }
+    }
+  },
+  "admin_login": "ok",
+  "trader_otp_request": {
+    "status": 200,
+    "body": {
+      "success": true,
+      "message": "If this number is registered, a verification code has been sent.",
+      "data": null
+    }
+  },
+  "cron": {
+    "status": 200,
+    "body": {
+      "success": true,
+      "message": "Pending payments checked.",
+      "data": {
+        "checked": 0,
+        "resolved_success": 0,
+        "resolved_failed": 0,
+        "still_pending": 0,
+        "skipped_no_reference": 0,
+        "older_than_minutes": 5
+      }
+    }
+  },
+  "ussd": [
+    [
+      "menu",
+      "Welcome to DA Revenue | 1. Register Business | 2. Check My TIN | 3. Pay Assessment | 4. Help"
+    ],
+    [
+      "reg",
+      "Step 1 of 6 | Enter your full name:"
+    ],
+    [
+      "name",
+      "Step 2/6 Business Type | 1. Hawker | 2. Food Vendor | 3. Clothing | 4. Electronics | 5. Services | 6. Agriculture | 7. Other"
+    ],
+    [
+      "btype",
+      "Monthly income: | 1. GHC 100-400 | 2. GHC 401-1000 | 3. GHC 1001-3000 | 4. GHC 3001+"
+    ],
+    [
+      "bracket",
+      "Step 4 of 6 - Region | 1. Greater Accra | 2. Ashanti | 3. Western | 4. Northern | 5. Eastern | 6. Volta | 7. Other"
+    ],
+    [
+      "region",
+      "Step 5 of 6 | Enter market or community name:"
+    ],
+    [
+      "market",
+      "Step 6 of 6 - Confirm | Name: G4 USSD Trader | Business: Hawker | Location: Greater Accra - G4 USSD Market |  | 1. Confirm & Register | 2. Start Over"
+    ],
+    [
+      "confirm",
+      "Registration complete! | Your TIN: GH-TIN-89692F | An SMS will be sent shortly."
+    ]
+  ],
+  "check_tin": [
+    "Welcome to DA Revenue\n1. Register Business\n2. Check My TIN\n3. Pay Assessment\n4. Help",
+    "Enter your phone number\nor press 0 to use this number:",
+    "Your TIN is GH-TIN-89692F"
+  ]
+}
