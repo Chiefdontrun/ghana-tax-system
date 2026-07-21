@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { NavLink } from "react-router-dom";
+import { Link, NavLink } from "react-router-dom";
 import clsx from "clsx";
 
 const navLinks = [
@@ -42,7 +42,7 @@ export default function Header() {
               end={to === "/"}
               className={({ isActive }) =>
                 clsx(
-                  "px-3 py-1.5 rounded text-sm font-medium transition-colors",
+                  "px-3 py-1.5 rounded text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70",
                   isActive
                     ? "bg-white/20 text-white"
                     : "text-white/80 hover:bg-white/10 hover:text-white"
@@ -52,11 +52,17 @@ export default function Header() {
               {label}
             </NavLink>
           ))}
+          <Link
+            to="/trader/login"
+            className="ml-1 px-3 py-1.5 rounded text-sm font-semibold bg-white text-cu-red hover:bg-gray-100 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-cu-red"
+          >
+            Trader Login
+          </Link>
         </nav>
 
         {/* Mobile hamburger */}
         <button
-          className="md:hidden p-2 rounded hover:bg-white/10 transition-colors"
+          className="md:hidden p-2 rounded hover:bg-white/10 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70"
           onClick={() => setMenuOpen((v) => !v)}
           aria-expanded={menuOpen}
           aria-label="Toggle navigation"
@@ -82,7 +88,7 @@ export default function Header() {
               onClick={() => setMenuOpen(false)}
               className={({ isActive }) =>
                 clsx(
-                  "px-3 py-2 rounded text-sm font-medium transition-colors",
+                  "px-3 py-2 rounded text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70",
                   isActive
                     ? "bg-white/20 text-white"
                     : "text-white/80 hover:bg-white/10 hover:text-white"
@@ -92,6 +98,21 @@ export default function Header() {
               {label}
             </NavLink>
           ))}
+          <Link
+            to="/trader/login"
+            onClick={() => setMenuOpen(false)}
+            className="mt-1 px-3 py-2 rounded text-sm font-semibold bg-white text-cu-red hover:bg-gray-100 transition-colors text-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
+          >
+            Trader Login
+          </Link>
+          {/* Subtle staff entry — always present in the mobile drawer so it is never lost */}
+          <Link
+            to="/admin/login"
+            onClick={() => setMenuOpen(false)}
+            className="mt-2 px-3 py-1.5 text-xs text-white/50 hover:text-white/80 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/50 rounded"
+          >
+            Admin Login
+          </Link>
         </nav>
       )}
     </header>

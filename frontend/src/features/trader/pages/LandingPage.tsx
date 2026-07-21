@@ -80,24 +80,33 @@ export default function LandingPage() {
             Register your business, obtain your Tax Identification Number (TIN), and stay
             compliant with the District Assembly Revenue Unit — online or via USSD.
           </p>
-          <div className="flex flex-col sm:flex-row gap-3 mt-2">
+          <div className="flex flex-col sm:flex-row flex-wrap justify-center gap-3 mt-2">
             <Link
               to="/register"
-              className="inline-flex items-center justify-center gap-2 rounded-md bg-white text-cu-red font-semibold px-7 py-3 text-base hover:bg-gray-100 transition-colors shadow-md"
+              className="inline-flex items-center justify-center gap-2 rounded-md bg-white text-cu-red font-semibold px-7 py-3 text-base hover:bg-gray-100 transition-colors shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-cu-red"
             >
-              <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} aria-hidden>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
               </svg>
               Register Your Business
             </Link>
             <Link
               to="/check-tin"
-              className="inline-flex items-center justify-center gap-2 rounded-md border-2 border-white/60 text-white font-semibold px-7 py-3 text-base hover:bg-white/10 transition-colors"
+              className="inline-flex items-center justify-center gap-2 rounded-md border-2 border-white/60 text-white font-semibold px-7 py-3 text-base hover:bg-white/10 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-cu-red"
             >
-              <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} aria-hidden>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-4.35-4.35M17 11A6 6 0 115 11a6 6 0 0112 0z" />
               </svg>
               Check My TIN
+            </Link>
+            <Link
+              to="/trader/login"
+              className="inline-flex items-center justify-center gap-2 rounded-md border-2 border-white/60 text-white font-semibold px-7 py-3 text-base hover:bg-white/10 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-cu-red"
+            >
+              <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} aria-hidden>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" />
+              </svg>
+              Trader Login
             </Link>
           </div>
         </div>
